@@ -1,0 +1,13 @@
+__pycache__/
+.mypy_cache/
+
+# Datos fuente grandes o descargables
+*.csv
+*.geojson
+*.xlsx
+*.zip
+
+# Archivos historicos o de trabajo
+*.ipynb
+*.old
+*.php
