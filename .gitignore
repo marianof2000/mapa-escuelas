@@ -9,6 +9,7 @@ __pycache__/
 *.geojson
 *.xlsx
 *.zip
+*.7z
 
 # Archivos historicos o de trabajo
 *.ipynb

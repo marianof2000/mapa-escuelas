@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 PADRONES_DIR = DATA_DIR / "padrones"
 
-PADRON_PATH = PADRONES_DIR / "2026.01.12_padron_oficial_establecimientos_educativos_die.xlsx"
+PADRON_PATH = PADRONES_DIR / "2026_padron_oficial_establecimientos_educativos.xlsx"
 LIMITES_PATH = DATA_DIR / "limite_partidos.geojson"
 DESCRIPCIONES_PATH = DATA_DIR / "descripciones_escuelas.json"
 OUTPUT_PATH = BASE_DIR / "maps-dol.html"
@@ -21,8 +21,10 @@ IMAGEN_EXTENSION = ".webp"
 PADRON_COLUMNAS_REQUERIDAS = {
     "Cueanexo",
     "Jurisdicción",
+    "Sector",
     "Primario",
     "Localidad",
+    "Departamento",
     "Mail",
 }
 PADRON_FILAS_DE_BUSQUEDA = 30
@@ -51,3 +53,8 @@ PRIMARIA_COLUMNAS = (
 SPOTIFY_URL = (
     "https://open.spotify.com/embed/show/" "446QK5WSDCmetKGYV38zoi?utm_source=generator"
 )
+
+COORDENADAS_OFICIALES = {
+    # Escuela Nº27 Sargento Cabral: https://maps.app.goo.gl/Gc4M5nnzzdq3H2iG9
+    60828000: (-36.4252262, -57.4676075),
+}
