@@ -1,0 +1,129 @@
+{% macro script(this, kwargs) %}
+(function() {
+    var map = {{ this.map_name | safe }};
+    var escuelas = [{{ this.registros_js | safe }}];
+    var capas = Array.from(new Set(escuelas.map(function(item) {
+        return item.capa;
+    })));
+
+    function normalizar(valor) {
+        return String(valor || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim();
+    }
+
+    escuelas.forEach(function(item) {
+        item.textoNormalizado = normalizar(item.texto);
+    });
+
+    var control = L.control({position: "topleft"});
+    control.onAdd = function() {
+        var contenedor = L.DomUtil.create(
+            "div",
+            "buscador-escuelas-control"
+        );
+        var input = L.DomUtil.create("input", "", contenedor);
+        input.type = "search";
+        input.placeholder = "Buscar escuela, CUE, domicilio...";
+        input.setAttribute("aria-label", "Buscar una escuela");
+
+        var resultados = L.DomUtil.create(
+            "div",
+            "buscador-escuelas-resultados",
+            contenedor
+        );
+
+        function ocultarResultados() {
+            resultados.style.display = "none";
+            resultados.innerHTML = "";
+        }
+
+        function abrirEscuela(item) {
+            var selectorPadron = document.querySelector(
+                '.padron-selector-control select[name="padron-selector"]'
+            );
+            if (selectorPadron) {
+                selectorPadron.value = item.padron;
+                selectorPadron.dispatchEvent(new Event("change"));
+            } else {
+                capas.forEach(function(capa) {
+                    if (map.hasLayer(capa)) {
+                        map.removeLayer(capa);
+                    }
+                });
+                map.addLayer(item.capa);
+            }
+
+            if (typeof item.capa.zoomToShowLayer === "function") {
+                item.capa.zoomToShowLayer(item.marcador, function() {
+                    map.setView(item.marcador.getLatLng(), 16);
+                    item.marcador.openPopup();
+                });
+            } else {
+                map.setView(item.marcador.getLatLng(), 16);
+                item.marcador.openPopup();
+            }
+            input.value = item.etiqueta;
+            ocultarResultados();
+        }
+
+        function mostrarResultados() {
+            var consulta = normalizar(input.value);
+            resultados.innerHTML = "";
+            if (consulta.length < 2) {
+                ocultarResultados();
+                return;
+            }
+
+            var coincidencias = escuelas.filter(function(item) {
+                return item.textoNormalizado.indexOf(consulta) !== -1;
+            }).slice(0, 20);
+
+            if (!coincidencias.length) {
+                var vacio = L.DomUtil.create(
+                    "div",
+                    "buscador-escuelas-sin-resultados",
+                    resultados
+                );
+                vacio.textContent = "No se encontraron escuelas";
+            } else {
+                coincidencias.forEach(function(item) {
+                    var boton = L.DomUtil.create(
+                        "button",
+                        "buscador-escuelas-resultado",
+                        resultados
+                    );
+                    boton.type = "button";
+                    boton.textContent = item.etiqueta;
+                    boton.addEventListener("click", function() {
+                        abrirEscuela(item);
+                    });
+                });
+            }
+            resultados.style.display = "block";
+        }
+
+        input.addEventListener("input", mostrarResultados);
+        input.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                var primero = resultados.querySelector(
+                    ".buscador-escuelas-resultado"
+                );
+                if (primero) {
+                    event.preventDefault();
+                    primero.click();
+                }
+            } else if (event.key === "Escape") {
+                ocultarResultados();
+            }
+        });
+
+        L.DomEvent.disableClickPropagation(contenedor);
+        L.DomEvent.disableScrollPropagation(contenedor);
+        return contenedor;
+    };
+    control.addTo(map);
+})();
+{% endmacro %}

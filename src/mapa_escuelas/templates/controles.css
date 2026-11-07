@@ -1,0 +1,88 @@
+.padron-selector-control {
+    max-width: 280px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+    font: 13px/1.3 Arial, sans-serif;
+}
+
+.padron-selector-control label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.padron-selector-control select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #aeb6bf;
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.padron-resumen {
+    display: flex;
+    gap: 12px;
+    margin-top: 9px;
+    padding-top: 8px;
+    border-top: 1px solid #d8dde3;
+    white-space: nowrap;
+}
+
+.buscador-escuelas-control {
+    position: relative;
+    width: min(360px, calc(100vw - 24px));
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+    font: 13px/1.3 Arial, sans-serif;
+}
+
+.buscador-escuelas-control input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #aeb6bf;
+    border-radius: 4px;
+    font: inherit;
+}
+
+.buscador-escuelas-resultados {
+    display: none;
+    max-height: 280px;
+    margin-top: 6px;
+    overflow-y: auto;
+    border: 1px solid #d8dde3;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.buscador-escuelas-resultado,
+.buscador-escuelas-sin-resultados {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 1px solid #eef1f4;
+    background: #fff;
+    color: #1f2933;
+    font: inherit;
+    text-align: left;
+}
+
+.buscador-escuelas-resultado {
+    cursor: pointer;
+}
+
+.buscador-escuelas-resultado:hover,
+.buscador-escuelas-resultado:focus {
+    background: #eaf4fb;
+    outline: none;
+}

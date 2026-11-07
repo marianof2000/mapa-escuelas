@@ -1,0 +1,66 @@
+{% macro script(this, kwargs) %}
+(function() {
+    var map = {{ this.map_name | safe }};
+    var capasPadron = {
+        {{ this.capas_js | safe }}
+    };
+    var resumenesPadron = {{ this.resumenes_js | safe }};
+    var capaActiva = {{ this.nombre_inicial_js | safe }};
+
+    function actualizarResumen(nombre) {
+        var resumen = resumenesPadron[nombre];
+        var rurales = document.querySelector(
+            ".padron-resumen-rurales strong"
+        );
+        var urbanas = document.querySelector(
+            ".padron-resumen-urbanas strong"
+        );
+        if (resumen && rurales && urbanas) {
+            rurales.textContent = resumen.rurales;
+            urbanas.textContent = resumen.urbanas;
+        }
+    }
+
+    Object.keys(capasPadron).forEach(function(nombre) {
+        if (nombre !== capaActiva && map.hasLayer(capasPadron[nombre])) {
+            map.removeLayer(capasPadron[nombre]);
+        }
+    });
+
+    var control = L.control({position: "topright"});
+    control.onAdd = function() {
+        var div = L.DomUtil.create("div", "padron-selector-control");
+        div.innerHTML = `
+            <label for="padron-selector-lista">Padrón</label>
+            <select id="padron-selector-lista" name="padron-selector">
+                {{ this.opciones_html | safe }}
+            </select>
+            <div class="padron-resumen" aria-live="polite">
+                <span class="padron-resumen-rurales">
+                    Rurales: <strong>{{ this.rurales }}</strong>
+                </span>
+                <span class="padron-resumen-urbanas">
+                    Urbanas: <strong>{{ this.urbanas }}</strong>
+                </span>
+            </div>
+        `;
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        return div;
+    };
+    control.addTo(map);
+
+    document
+        .querySelector(".padron-selector-control select")
+        .addEventListener("change", function(event) {
+            Object.keys(capasPadron).forEach(function(nombre) {
+                if (map.hasLayer(capasPadron[nombre])) {
+                    map.removeLayer(capasPadron[nombre]);
+                }
+            });
+            capaActiva = event.target.value;
+            map.addLayer(capasPadron[capaActiva]);
+            actualizarResumen(capaActiva);
+        });
+})();
+{% endmacro %}

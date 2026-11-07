@@ -1,7 +1,7 @@
 [project]
 name = "python-mapa-escuelas"
 version = "0.1.0"
-description = "Add your description here"
+description = "Mapa histórico interactivo de escuelas primarias de Dolores"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,3 +10,18 @@ dependencies = [
     "pandas>=3.1.1",
     "python-calamine>=0.4.0",
 ]
+
+[project.scripts]
+mapa-escuelas-generar = "src.mapa_escuelas.generar_mapa:main"
+mapa-escuelas-convertir = "src.mapa_escuelas.convertir:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.mapa_escuelas" = ["templates/*.css", "templates/*.jinja"]

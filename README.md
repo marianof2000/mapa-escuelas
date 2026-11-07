@@ -27,24 +27,161 @@ historia, enlace, imagen y reproductor de Spotify.
 
 - `src/mapa_escuelas/generar_mapa.py`: genera el mapa HTML.
 - `src/mapa_escuelas/convertir.py`: consolida los padrones XLSX en un CSV.
-- `src/mapa_escuelas/funciones.py`: carga los datos y construye los controles,
-  capas, marcadores y fichas.
+- `src/mapa_escuelas/datos.py`: carga, normaliza y combina las fuentes.
+- `src/mapa_escuelas/popups.py`: construye las fichas de las escuelas.
+- `src/mapa_escuelas/controles.py`: construye las capas, el selector, el
+  resumen y el buscador.
+- `src/mapa_escuelas/plantillas.py`: carga y almacena en caché las plantillas
+  de los controles.
+- `src/mapa_escuelas/templates/`: contiene el CSS y JavaScript/Jinja de la
+  interfaz del mapa.
+- `src/mapa_escuelas/mapa.py`: compone el mapa Folium.
 - `src/mapa_escuelas/config.py`: contiene rutas, URLs y coordenadas oficiales.
 - `data/padrones/`: padrones oficiales en formato XLSX, de 2010 a 2026.
 - `data/padrones.csv`: padrón consolidado que utiliza el mapa.
 - `data/links.csv`: enlace asociado a cada marcador.
 - `data/indice_escuelas_rurales_dolores_CUE.csv`: historias de las escuelas,
   relacionadas mediante `Cueanexo`.
-- `data/descripciones_escuelas.json`: descripciones opcionales por CUE.
 - `data/limite_partidos.geojson`: límite geográfico del partido de Dolores.
 - `img/`: fotografías de las escuelas y miniatura genérica.
 - `tests/test_validacion.py`: pruebas automatizadas del proyecto.
 - `maps-dol.html`: mapa generado.
 - `index.html`: página contenedora que muestra el mapa en un `iframe`.
 
-Los archivos `mapas.py`, `convertir.py` y
-`mapas_escuelas_dolores_taller_producción_de_obra_vero.py` se conservan como
-wrappers de compatibilidad para ejecutar el proyecto desde la raíz.
+## Responsabilidades de los módulos Python
+
+El flujo principal de dependencias es:
+
+```text
+config → datos → popups → controles → mapa → generar_mapa
+              └────────→ convertir
+```
+
+### Paquete `src.mapa_escuelas`
+
+#### `config.py`
+
+Centraliza la configuración que comparten los demás módulos:
+
+- rutas de los XLSX, CSV, GeoJSON, imágenes y HTML de salida;
+- columnas obligatorias de los padrones y del CSV de escuelas primarias;
+- URL de la fuente remota de coordenadas;
+- URL del reproductor de Spotify;
+- coordenadas oficiales confirmadas manualmente.
+
+No carga archivos ni construye el mapa. Los cambios de ubicación de las
+fuentes deben realizarse aquí para evitar rutas duplicadas en el código.
+
+#### `datos.py`
+
+Es la capa de acceso y preparación de datos. Sus responsabilidades son:
+
+- localizar los libros XLSX disponibles;
+- detectar la hoja y la fila de encabezados de cada padrón;
+- leer los XLSX mediante pandas y Calamine;
+- filtrar escuelas primarias estatales del partido de Dolores;
+- normalizar `Cueanexo` para usarlo como clave entre fuentes;
+- cargar `padrones.csv`, `links.csv` y las historias;
+- validar columnas, claves duplicadas y enlaces faltantes;
+- unir enlaces e historias con cada marcador;
+- cargar y recortar el GeoJSON al límite del partido de Dolores.
+
+Este módulo entrega datos preparados, pero no genera HTML ni objetos Folium.
+
+#### `convertir.py`
+
+Implementa el proceso de construcción de `data/padrones.csv` a partir de los
+XLSX. Recorre los padrones, utiliza las funciones de `datos.py`, agrega los
+identificadores de período y completa coordenadas faltantes.
+
+La estrategia para completar coordenadas es:
+
+1. coordenada oficial configurada manualmente;
+2. coordenada más reciente del mismo `Cueanexo`;
+3. coordenada de una escuela con igual departamento, localidad y domicilio.
+
+También contiene la interfaz de línea de comandos y sus opciones
+`--padrones-dir`, `--salida` y `--primaria-url`.
+
+#### `popups.py`
+
+Construye las fichas emergentes de los marcadores. Se ocupa de:
+
+- separar la denominación de la escuela de su nombre propio;
+- localizar la imagen WebP correspondiente al CUE;
+- utilizar la miniatura genérica cuando no existe una imagen propia;
+- escapar el contenido proveniente de los archivos de datos;
+- generar el HTML de ubicación, ámbito, historia, enlace, imagen
+  y reproductor;
+- convertir ese HTML en un `folium.Popup`.
+
+No decide qué escuelas aparecen ni crea capas del mapa.
+
+#### `controles.py`
+
+Contiene los componentes interactivos asociados a las capas:
+
+- crea un marcador por escuela y los agrupa con `MarkerCluster`;
+- asigna colores diferentes a escuelas rurales y urbanas;
+- prepara el contenido indexado por el buscador;
+- genera el selector desplegable de padrones;
+- actualiza el resumen de escuelas rurales y urbanas;
+- activa la capa correcta cuando se selecciona un resultado.
+
+Recibe datos ya preparados y delega la ficha de cada marcador a `popups.py`.
+
+#### `plantillas.py` y `templates/`
+
+`plantillas.py` localiza y carga una sola vez los recursos de interfaz. El
+directorio `templates/` mantiene separados de Python:
+
+- `controles.css`: estilos del selector, resumen y buscador;
+- `selector_padrones.js.jinja`: comportamiento del selector de padrones;
+- `buscador_escuelas.js.jinja`: búsqueda, cambio de capa y apertura de fichas.
+
+Las plantillas forman parte del paquete instalado mediante la configuración de
+`package-data` de `pyproject.toml`.
+
+#### `mapa.py`
+
+Compone el objeto `folium.Map` final. Ordena los padrones desde el más reciente
+al más antiguo, selecciona 2026 al iniciar, calcula los resúmenes por ámbito y
+conecta las capas con los controles.
+
+También agrega el límite geográfico de Dolores, el minimapa, la escala y el
+visor de coordenadas. Retorna el mapa en memoria; no escribe el archivo HTML.
+
+#### `generar_mapa.py`
+
+Es el punto de entrada para generar el resultado publicable. Coordina estas
+operaciones:
+
+1. cargar el límite geográfico;
+2. cargar las escuelas agrupadas por padrón;
+3. construir el mapa mediante `mapa.py`;
+4. guardar el resultado en `maps-dol.html`.
+
+Puede ejecutarse con:
+
+```bash
+python3 -m src.mapa_escuelas.generar_mapa
+```
+
+#### `__init__.py`
+
+Identifica `mapa_escuelas` como paquete y contiene su descripción general. No
+ejecuta procesos ni expone estado mutable.
+
+### Dónde agregar cambios
+
+- Nuevas fuentes, validaciones o cruces de datos: `datos.py`.
+- Reglas para completar coordenadas durante la conversión: `convertir.py`.
+- Contenido o diseño de las fichas: `popups.py`.
+- Selector, buscador, capas o resúmenes: `controles.py`.
+- Estilos o comportamiento JavaScript de los controles: `templates/`.
+- Configuración general del mapa y componentes Folium: `mapa.py`.
+- Rutas, URLs y constantes compartidas: `config.py`.
+- Secuencia para generar el archivo final: `generar_mapa.py`.
 
 ## Requisitos
 
@@ -57,13 +194,20 @@ wrappers de compatibilidad para ejecutar el proyecto desde la raíz.
 Instalar las dependencias:
 
 ```bash
-python3 -m pip install -r requirements.txt
+python3 -m pip install .
 ```
 
 También se puede instalar el proyecto con `uv`:
 
 ```bash
 uv sync
+```
+
+La instalación incorpora los comandos:
+
+```bash
+mapa-escuelas-generar
+mapa-escuelas-convertir
 ```
 
 ## Fuentes necesarias para generar el mapa
@@ -73,11 +217,12 @@ El generador espera los siguientes archivos:
 - `data/padrones.csv`
 - `data/links.csv`
 - `data/indice_escuelas_rurales_dolores_CUE.csv`
-- `data/descripciones_escuelas.json`
 - `data/limite_partidos.geojson`
 
-La generación de `maps-dol.html` no abre los XLSX ni descarga información
-remota. Los libros de Excel solo se procesan al ejecutar la conversión.
+`data/padrones.csv` y `data/limite_partidos.geojson` están versionados para que
+un clon nuevo pueda regenerar `maps-dol.html` sin descargar los XLSX. Los
+libros de Excel solo se necesitan para reconstruir `padrones.csv` y permanecen
+fuera de Git debido a su tamaño.
 
 ## Convertir los padrones XLSX
 
@@ -87,10 +232,10 @@ Para consolidar los libros de `data/padrones/`:
 python3 -m src.mapa_escuelas.convertir
 ```
 
-También puede usarse el wrapper:
+Con el proyecto instalado, puede usarse el comando:
 
 ```bash
-python3 convertir.py
+mapa-escuelas-convertir
 ```
 
 El resultado se guarda en `data/padrones.csv`. Cada fila incluye el
@@ -111,7 +256,7 @@ La conversión se detiene si todavía quedan escuelas sin ubicación.
 Para indicar otras rutas:
 
 ```bash
-python3 convertir.py \
+mapa-escuelas-convertir \
   --padrones-dir data/padrones \
   --salida data/padrones.csv
 ```
@@ -138,19 +283,6 @@ Cuando el CSV no contiene una historia para un CUE, la ficha muestra
 `Historia no disponible.`. Las filas de la fuente histórica que no tienen CUE
 no pueden asociarse automáticamente con un marcador.
 
-## Descripciones
-
-Las descripciones opcionales se editan en
-`data/descripciones_escuelas.json`, utilizando el `Cueanexo` como clave:
-
-```json
-{
-  "60828200": "Texto descriptivo de la escuela."
-}
-```
-
-Si una escuela no tiene descripción, ese bloque no aparece en la ficha.
-
 ## Imágenes
 
 Las imágenes se guardan en `img/` en formato WebP. El nombre debe coincidir con
@@ -172,10 +304,10 @@ Después de preparar los CSV:
 python3 -m src.mapa_escuelas.generar_mapa
 ```
 
-También se puede ejecutar:
+Con el proyecto instalado, también se puede ejecutar:
 
 ```bash
-python3 mapas_escuelas_dolores_taller_producción_de_obra_vero.py
+mapa-escuelas-generar
 ```
 
 El resultado se guarda en `maps-dol.html`.

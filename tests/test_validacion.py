@@ -9,33 +9,31 @@ from unittest.mock import patch
 import pandas as pd
 
 from src.mapa_escuelas.config import (
-    DESCRIPCIONES_PATH,
     HISTORIAS_PATH,
     IMAGENES_POPUP_PATH,
     LINKS_PATH,
-    PADRON_PATH,
 )
 from src.mapa_escuelas.convertir import _completar_coordenadas_mas_recientes
-from src.mapa_escuelas.funciones import (
+from src.mapa_escuelas.datos import (
     _combinar_padron_con_primaria,
-    _crear_popup_desde_html,
-    _crear_popup_html,
-    _detectar_hoja_y_header_padron,
+    _detectar_hoja_y_header_en_excel,
     _etiqueta_padron,
-    _imagen_popup_src,
     _anio_para_ordenar_padron,
     _normalizar_cueanexo,
     _nombre_padron,
     cargar_escuelas_por_padron_csv,
-    crear_mapa,
+)
+from src.mapa_escuelas.mapa import crear_mapa
+from src.mapa_escuelas.popups import (
+    _crear_popup_desde_html,
+    _crear_popup_html,
+    _imagen_popup_src,
 )
 
 
 class ValidacionProyectoTest(unittest.TestCase):
-    def test_descripciones_tienen_imagen_webp(self) -> None:
-        descripciones = json.loads(DESCRIPCIONES_PATH.read_text(encoding="utf-8"))
-        imagenes = {path.stem for path in IMAGENES_POPUP_PATH.glob("*.webp")}
-        self.assertFalse(sorted(set(descripciones) - imagenes))
+    def test_existe_imagen_webp_de_respaldo(self) -> None:
+        self.assertTrue((IMAGENES_POPUP_PATH / "escuela-muestra.webp").exists())
 
     def test_imagen_popup_usa_ruta_webp_relativa(self) -> None:
         self.assertEqual(_imagen_popup_src("60828200"), "img/60828200.webp")
@@ -53,7 +51,6 @@ class ValidacionProyectoTest(unittest.TestCase):
             "DOMICILIO",
             "Urbano",
             1,
-            "Texto",
             link="https://escuelas-dolores.example/padron_2010/1",
             historia="Historia <rural> de prueba",
         )
@@ -66,23 +63,41 @@ class ValidacionProyectoTest(unittest.TestCase):
         self.assertIn("Historia &lt;rural&gt; de prueba", html)
         self.assertEqual(popup.options["max_width"], 600)
 
-    def test_popup_sin_descripcion_no_muestra_texto_pendiente(self) -> None:
+    def test_popup_no_incluye_bloque_de_descripcion(self) -> None:
         html = _crear_popup_html(
             "EP 1",
             "DOMICILIO",
             "Rural",
             1,
-            "",
             historia="Historia disponible",
         )
 
         self.assertNotIn("Descripción pendiente", html)
         self.assertNotIn('class="popup-descripcion"', html)
 
-    def test_detecta_header_padron_actual(self) -> None:
-        hoja, header = _detectar_hoja_y_header_padron(PADRON_PATH)
-        self.assertTrue(hoja)
-        self.assertIsInstance(header, int)
+    def test_detecta_header_sin_depender_de_un_xlsx_real(self) -> None:
+        excel = type("ExcelDePrueba", (), {"sheet_names": ["Padron"]})()
+        encabezados = [
+            "Cueanexo",
+            "Jurisdicción",
+            "Sector",
+            "Primario",
+            "Localidad",
+            "Departamento",
+            "Mail",
+        ]
+        preview = pd.DataFrame(
+            [["Padrón oficial", *([None] * 6)], encabezados]
+        )
+
+        with patch("src.mapa_escuelas.datos.pd.read_excel", return_value=preview):
+            hoja, header = _detectar_hoja_y_header_en_excel(
+                excel,
+                Path("padron-prueba.xlsx"),
+            )
+
+        self.assertEqual(hoja, "Padron")
+        self.assertEqual(header, 1)
 
     def test_nombre_padron_extrae_anio(self) -> None:
         self.assertEqual(
@@ -114,7 +129,14 @@ class ValidacionProyectoTest(unittest.TestCase):
 
     def test_csv_de_padron_incluye_columnas_para_mapa(self) -> None:
         primaria = _primaria_de_prueba()
-        escuelas = _combinar_padron_con_primaria(PADRON_PATH, primaria)
+        padron = pd.DataFrame(
+            [_fila_padron(60827900, "DOLORES", "DOLORES", "Estatal")]
+        )
+        with patch("src.mapa_escuelas.datos._cargar_padron", return_value=padron):
+            escuelas = _combinar_padron_con_primaria(
+                Path("padron-prueba.xlsx"),
+                primaria,
+            )
         for columna in ("Cueanexo", "nombre", "latitud", "longitud", "Domicilio"):
             self.assertIn(columna, escuelas.columns)
 
@@ -161,7 +183,7 @@ class ValidacionProyectoTest(unittest.TestCase):
             ]
         )
 
-        with patch("src.mapa_escuelas.funciones._cargar_padron", return_value=padron):
+        with patch("src.mapa_escuelas.datos._cargar_padron", return_value=padron):
             escuelas = _combinar_padron_con_primaria(Path("padron.xlsx"), primaria)
 
         self.assertEqual(set(escuelas["Cueanexo"]), {1, 2})
@@ -179,7 +201,7 @@ class ValidacionProyectoTest(unittest.TestCase):
             [{"Cueanexo": 1, "latitud": -36.0, "longitud": -57.0}]
         )
 
-        with patch("src.mapa_escuelas.funciones._cargar_padron", return_value=padron):
+        with patch("src.mapa_escuelas.datos._cargar_padron", return_value=padron):
             escuelas = _combinar_padron_con_primaria(
                 Path("padron.xlsx"),
                 primaria,
@@ -294,6 +316,25 @@ class ValidacionProyectoTest(unittest.TestCase):
         self.assertEqual(resultado.iloc[0]["latitud"], -36.4252262)
         self.assertEqual(resultado.iloc[0]["longitud"], -57.4676075)
 
+    def test_usa_coordenadas_oficiales_para_escuela_12(self) -> None:
+        padrones = pd.DataFrame(
+            [
+                {
+                    "Cueanexo": 60200000,
+                    "Departamento": "DOLORES",
+                    "Localidad": "DOLORES",
+                    "Domicilio": "RUTA 63 KM 20",
+                    "latitud": None,
+                    "longitud": None,
+                }
+            ]
+        )
+
+        resultado = _completar_coordenadas_mas_recientes(padrones)
+
+        self.assertEqual(resultado.iloc[0]["latitud"], -36.31279)
+        self.assertEqual(resultado.iloc[0]["longitud"], -57.474213)
+
     def test_mapa_incluye_buscador_de_escuelas(self) -> None:
         import pandas as pd
 
@@ -318,7 +359,6 @@ class ValidacionProyectoTest(unittest.TestCase):
         mapa = crear_mapa(
             {"Padrón 2026": escuelas},
             json.dumps(limite),
-            {"60827900": "Escuela histórica de Dolores"},
         )
         html = mapa.get_root().render()
 
@@ -375,6 +415,8 @@ def _fila_padron(
         "Primario": primario,
         "Localidad": localidad,
         "Departamento": departamento,
+        "Domicilio": "DOMICILIO DE PRUEBA",
+        "Ámbito": "Urbano",
         "Mail": "escuela@example.com",
     }
 

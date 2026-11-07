@@ -14,7 +14,7 @@ from .config import (
     PADRONES_DIR,
     PRIMARIA_URL,
 )
-from .funciones import (
+from .datos import (
     _cargar_primaria,
     _combinar_padron_con_primaria,
     _etiqueta_padron,

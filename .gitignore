@@ -3,12 +3,16 @@ __pycache__/
 .pytest_cache/
 .coverage
 .DS_Store
+*.egg-info/
+build/
 
 # Datos fuente grandes o descargables
 *.csv
 !data/links.csv
 !data/indice_escuelas_rurales_dolores_CUE.csv
+!data/padrones.csv
 *.geojson
+!data/limite_partidos.geojson
 *.xlsx
 *.zip
 *.7z
@@ -17,3 +21,5 @@ __pycache__/
 *.ipynb
 *.old
 *.php
+outputs/
+tmp_work/

@@ -1,4 +1,0 @@
-pandas
-python-calamine
-folium
-branca

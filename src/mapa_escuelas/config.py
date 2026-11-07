@@ -8,9 +8,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 PADRONES_DIR = DATA_DIR / "padrones"
 
-PADRON_PATH = PADRONES_DIR / "2026_padron_oficial_establecimientos_educativos.xlsx"
 LIMITES_PATH = DATA_DIR / "limite_partidos.geojson"
-DESCRIPCIONES_PATH = DATA_DIR / "descripciones_escuelas.json"
 OUTPUT_PATH = BASE_DIR / "maps-dol.html"
 PADRONES_CSV_PATH = DATA_DIR / "padrones.csv"
 LINKS_PATH = DATA_DIR / "links.csv"
@@ -57,9 +55,45 @@ SPOTIFY_URL = (
     "https://open.spotify.com/embed/show/" "446QK5WSDCmetKGYV38zoi?utm_source=generator"
 )
 
+# Esta escuela cerró antes de 2011
+EP_12 = {
+    "padron": "padron_2010",
+    "padron_nombre": "Padrón 2010",
+    "padron_archivo": "2010_padron_oficial_establecimientos_educativos.xlsx",
+    "Jurisdicción": "Buenos Aires",
+    "Cueanexo": "60200000",
+    "Nombre": "ESCUELA PRIMARIA N°12 OLEGARIO V. ANDRADE",
+    "Sector": "Estatal",
+    "Ámbito": "Rural",
+    "Domicilio": "Ruta 63 KM 20",
+    "C. P.": "B7100",
+    "Código de área": None,
+    "Teléfono": "441234",
+    "Código de localidad": "6238025.1",
+    "Localidad": "DOLORES",
+    "Departamento": "DOLORES",
+    "Mail": None,
+    "nombre": 'ESCUELA DE EDUCACIÓN PRIMARIA Nº12 "OLEGARIO V. ANDRADE"',
+    "id_modalidad": 1,
+    "modalidad": "Educación Común",
+    "id_nivel": 2,
+    "nivel": "Nivel Primario",
+    "id_periodo": 103,
+    "periodo": None,
+    "calle": "RUTA 63 KM 20",
+    "nro": "S/N",
+    "localidad": "DOLORES",
+    "codigo_postal": "7100.1",
+    "nro_escuela": 12,
+    "latitud": -36.31279,
+    "longitud": -57.474213,
+    "Código de departamento": None,
+    "Cue": None,
+}
+
 COORDENADAS_OFICIALES = {
     # Escuela Nº27 Sargento Cabral: https://maps.app.goo.gl/Gc4M5nnzzdq3H2iG9
     60828000: (-36.4252262, -57.4676075),
-    # Escuela Nº12 Olegario V andrade: https://maps.app.goo.gl/bexbi8wrMq9CggYU6
-    00000000: (-36.31279,-57.474213)
+    # Escuela Nº12 Olegario V. Andrade: https://maps.app.goo.gl/bexbi8wrMq9CggYU6
+    60200000: (-36.31279, -57.474213),
 }
