@@ -1,93 +1,147 @@
 # Mapa de escuelas primarias de Dolores
 
-Este proyecto genera `maps-dol.html`, un mapa interactivo de escuelas primarias
-de Dolores hecho con Folium. El mapa lee las escuelas desde `data/padrones.csv`,
-crea una capa por cada padron disponible y permite seleccionar una sola capa por
-vez con botones de radio.
-Cada marcador abre un popup con datos de la escuela, una descripcion editable,
-una imagen ilustrativa y un reproductor de Spotify.
+Este proyecto genera `maps-dol.html`, un mapa interactivo de las escuelas
+primarias estatales del partido de Dolores, provincia de Buenos Aires. Está
+desarrollado con Python, pandas, Calamine y Folium.
 
-## Archivos principales
+El mapa reúne los padrones de 2010 a 2026. Permite consultar un solo padrón por
+vez, buscar escuelas y abrir una ficha por cada marcador con sus datos,
+historia, enlace, imagen y reproductor de Spotify.
 
-- `src/mapa_escuelas/`: paquete Python del proyecto.
-- `src/mapa_escuelas/generar_mapa.py`: script principal que genera el mapa.
-- `src/mapa_escuelas/funciones.py`: funciones de carga de datos, armado de
-  popups y construccion del mapa.
-- `src/mapa_escuelas/config.py`: rutas, URLs y columnas esperadas.
-- `src/mapa_escuelas/convertir.py`: genera `data/padrones.csv` desde los
-  padrones `.xlsx`.
-- `mapas.py`, `convertir.py` y
-  `mapas_escuelas_dolores_taller_producción_de_obra_vero.py`: wrappers de
-  compatibilidad para ejecutar el proyecto desde la raiz.
-- `data/descripciones_escuelas.json`: textos de descripcion por escuela. La
-  clave es el `Cueanexo`.
-- `data/padrones.csv`: CSV consolidado que usa el generador del mapa.
-- `data/padrones/`: archivos `.xlsx` fuente.
-- `data/limite_partidos.geojson`: limite geografico usado en el mapa.
-- `tests/`: validaciones del proyecto.
-- `img/`: imagenes de los popups. Cada archivo debe llamarse con el `Cueanexo`
-  correspondiente, por ejemplo `img/60828200.webp`.
+## Funciones del mapa
+
+- Selector desplegable de padrones, ordenado desde 2026 hacia los años
+  anteriores.
+- Padrón 2026 seleccionado al iniciar.
+- El padrón 2010 se presenta como `Anterior a 2011`.
+- Resumen dinámico de la cantidad de escuelas rurales y urbanas del padrón
+  activo.
+- Buscador por escuela, CUE, domicilio, localidad y demás datos disponibles.
+- Marcadores naranjas para escuelas rurales y celestes para escuelas urbanas.
+- Ficha ampliada para cada escuela con ubicación, ámbito, historia, enlace,
+  imagen y audio.
+- Miniatura genérica cuando una escuela no tiene una imagen propia.
+- Cambio automático de padrón cuando se abre un resultado del buscador.
+
+## Estructura principal
+
+- `src/mapa_escuelas/generar_mapa.py`: genera el mapa HTML.
+- `src/mapa_escuelas/convertir.py`: consolida los padrones XLSX en un CSV.
+- `src/mapa_escuelas/funciones.py`: carga los datos y construye los controles,
+  capas, marcadores y fichas.
+- `src/mapa_escuelas/config.py`: contiene rutas, URLs y coordenadas oficiales.
+- `data/padrones/`: padrones oficiales en formato XLSX, de 2010 a 2026.
+- `data/padrones.csv`: padrón consolidado que utiliza el mapa.
+- `data/links.csv`: enlace asociado a cada marcador.
+- `data/indice_escuelas_rurales_dolores_CUE.csv`: historias de las escuelas,
+  relacionadas mediante `Cueanexo`.
+- `data/descripciones_escuelas.json`: descripciones opcionales por CUE.
+- `data/limite_partidos.geojson`: límite geográfico del partido de Dolores.
+- `img/`: fotografías de las escuelas y miniatura genérica.
+- `tests/test_validacion.py`: pruebas automatizadas del proyecto.
 - `maps-dol.html`: mapa generado.
-- `index.html`: pagina contenedora que muestra `maps-dol.html` en un iframe.
+- `index.html`: página contenedora que muestra el mapa en un `iframe`.
+
+Los archivos `mapas.py`, `convertir.py` y
+`mapas_escuelas_dolores_taller_producción_de_obra_vero.py` se conservan como
+wrappers de compatibilidad para ejecutar el proyecto desde la raíz.
 
 ## Requisitos
 
-Instalar dependencias:
+- Python 3.12 o posterior.
+- Acceso a internet durante la conversión de los padrones para descargar el
+  CSV de escuelas primarias definido en `PRIMARIA_URL`.
+- Acceso a internet al visualizar el mapa para cargar Leaflet,
+  OpenStreetMap, Bootstrap y Spotify.
+
+Instalar las dependencias:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-El proyecto espera estos datos fuente:
+También se puede instalar el proyecto con `uv`:
 
-- `data/padrones.csv`, generado con `convertir.py`
-- `data/limite_partidos.geojson`
+```bash
+uv sync
+```
+
+## Fuentes necesarias para generar el mapa
+
+El generador espera los siguientes archivos:
+
+- `data/padrones.csv`
+- `data/links.csv`
+- `data/indice_escuelas_rurales_dolores_CUE.csv`
 - `data/descripciones_escuelas.json`
+- `data/limite_partidos.geojson`
 
-La generacion del mapa no abre archivos `.xlsx` ni descarga datos remotos. La
-conexion a internet solo hace falta al ejecutar `convertir.py`, porque ese
-script descarga el CSV remoto definido en `PRIMARIA_URL`.
+La generación de `maps-dol.html` no abre los XLSX ni descarga información
+remota. Los libros de Excel solo se procesan al ejecutar la conversión.
 
-## Convertir padrones a CSV
+## Convertir los padrones XLSX
 
-Para consolidar todos los padrones `.xlsx` en un unico CSV:
+Para consolidar los libros de `data/padrones/`:
+
+```bash
+python3 -m src.mapa_escuelas.convertir
+```
+
+También puede usarse el wrapper:
 
 ```bash
 python3 convertir.py
 ```
 
-El resultado se guarda en `data/padrones.csv`. Cada fila incluye:
+El resultado se guarda en `data/padrones.csv`. Cada fila incluye el
+identificador y nombre del padrón, el archivo de origen, el CUE, los datos de la
+escuela y las coordenadas utilizadas por el mapa.
 
-- `padron`: identificador estable del padron, por ejemplo `padron_2026_01`
-- `padron_nombre`: etiqueta legible del padron, por ejemplo `Padrón 2026.01`
-- `padron_archivo`: archivo `.xlsx` de origen
-- columnas de escuelas primarias usadas para coordenadas y nombre
-- columnas del padron necesarias para el popup y los filtros del mapa
+Los XLSX se leen mediante pandas con el motor Calamine. Si una escuela no tiene
+coordenadas en un padrón histórico, el conversor intenta completarlas en este
+orden:
 
-Si una escuela no tiene coordenadas en un padron historico, el conversor busca
-el registro mas reciente del mismo `Cueanexo` que tenga latitud y longitud. Como
-segundo respaldo, utiliza el dato mas reciente de otra escuela con el mismo
-departamento, localidad y domicilio. Si aun asi no puede resolver la ubicacion,
-la conversion se detiene y no genera un CSV incompleto.
+1. Coordenadas oficiales configuradas manualmente.
+2. Coordenadas más recientes del mismo `Cueanexo`.
+3. Coordenadas de una escuela con el mismo departamento, localidad y
+   domicilio.
 
-Las coordenadas oficiales confirmadas manualmente prevalecen sobre esos cruces.
-La Escuela Nº27 Sargento Cabral (`Cueanexo 60828000`) utiliza la ubicacion
-publicada en <https://maps.app.goo.gl/Gc4M5nnzzdq3H2iG9>.
+La conversión se detiene si todavía quedan escuelas sin ubicación.
 
-Tambien se puede elegir directorio o salida:
+Para indicar otras rutas:
 
 ```bash
-python3 convertir.py --padrones-dir data/padrones --salida data/padrones.csv
+python3 convertir.py \
+  --padrones-dir data/padrones \
+  --salida data/padrones.csv
 ```
 
-Con la estructura actual, el directorio por defecto de padrones es
-`data/padrones/`. Si queres usar otra carpeta, pasala con `--padrones-dir`.
+## Enlaces
+
+`data/links.csv` debe contener una fila por marcador y estas columnas:
+
+```text
+padron,Cueanexo,link
+```
+
+La combinación se realiza mediante el identificador del padrón y el
+`Cueanexo`. La generación se detiene si falta un enlace o si hay claves
+duplicadas.
+
+## Historias
+
+Las historias se toman de la columna `historia` de
+`data/indice_escuelas_rurales_dolores_CUE.csv` y se relacionan con cada escuela
+mediante `Cueanexo`.
+
+Cuando el CSV no contiene una historia para un CUE, la ficha muestra
+`Historia no disponible.`. Las filas de la fuente histórica que no tienen CUE
+no pueden asociarse automáticamente con un marcador.
 
 ## Descripciones
 
-Las descripciones se editan en `data/descripciones_escuelas.json`.
-
-Ejemplo:
+Las descripciones opcionales se editan en
+`data/descripciones_escuelas.json`, utilizando el `Cueanexo` como clave:
 
 ```json
 {
@@ -95,24 +149,30 @@ Ejemplo:
 }
 ```
 
-Si una escuela no tiene descripcion en el JSON, el popup muestra
-`Descripcion pendiente.`.
+Si una escuela no tiene descripción, ese bloque no aparece en la ficha.
 
-## Imagenes
+## Imágenes
 
-Las imagenes van en `img/` y se asocian automaticamente por `Cueanexo`.
-El mapa lee archivos `.webp` directamente desde `img/`.
-
-Ejemplo:
+Las imágenes se guardan en `img/` en formato WebP. El nombre debe coincidir con
+el `Cueanexo` de la escuela:
 
 ```text
 img/60828200.webp
 ```
 
-Al generar el mapa, las imagenes no se embeben dentro de `maps-dol.html`.
-Los popups apuntan a rutas como `img/60828200.webp`.
+Si no existe una imagen específica, el mapa utiliza
+`img/escuela-muestra.webp`. Las imágenes no se incrustan dentro del HTML: las
+fichas las cargan mediante rutas relativas.
 
 ## Generar el mapa
+
+Después de preparar los CSV:
+
+```bash
+python3 -m src.mapa_escuelas.generar_mapa
+```
+
+También se puede ejecutar:
 
 ```bash
 python3 mapas_escuelas_dolores_taller_producción_de_obra_vero.py
@@ -120,47 +180,35 @@ python3 mapas_escuelas_dolores_taller_producción_de_obra_vero.py
 
 El resultado se guarda en `maps-dol.html`.
 
-El generador del mapa usa solamente `data/padrones.csv` como fuente de escuelas.
-Si agregas o cambias archivos `.xlsx`, primero hay que volver a ejecutar
-`python3 convertir.py`.
-
-El mapa incluye un selector de padrones en la esquina superior derecha. Cada
-opcion es excluyente: al elegir un padron, se ocultan los marcadores del resto.
-Los padrones se muestran con nombres cortos como `2021`, `2023.09` o `2026.01`.
-
-El buscador de la esquina superior izquierda localiza escuelas en todos los
-padrones por nombre, CUE, domicilio, localidad o cualquier otro dato disponible.
-Al elegir un resultado, activa el padron correspondiente, centra la escuela y
-abre su ficha. La busqueda no distingue mayusculas ni tildes.
+Si se agregan o modifican padrones XLSX, primero hay que volver a ejecutar la
+conversión y luego regenerar el mapa.
 
 ## Validar el proyecto
 
-Hay validaciones basicas que no requieren internet:
+Las pruebas no requieren internet:
 
 ```bash
-python3 -m unittest tests/test_validacion.py
+python3 -m unittest discover -s tests -v
 ```
 
-Estas pruebas revisan que las descripciones tengan imagen `.webp`, que las rutas
-de imagen sean relativas, y que el encabezado del padron actual se detecte.
+Las validaciones comprueban, entre otros puntos, la lectura de padrones, las
+coordenadas, las imágenes, los enlaces, las historias, el selector desplegable,
+el orden de los años, el resumen rural/urbano y el buscador.
 
-## Publicacion
+## Publicación
 
-Para publicar el mapa, subir `maps-dol.html`. Si se usa la pagina contenedora,
-subir tambien `index.html`.
+Para publicar el resultado se deben subir:
 
-Subir tambien la carpeta `img/` para que los popups puedan cargar las imagenes
-`.webp`. El mapa necesita internet para cargar recursos externos de
-Leaflet/OpenStreetMap, Bootstrap y Spotify.
+- `maps-dol.html`
+- `index.html`, si se utiliza la página contenedora
+- la carpeta `img/`
+
+Los CSV y XLSX no son necesarios para visualizar un mapa que ya fue generado.
 
 ## Fuentes de datos
 
-- Padron oficial de establecimientos educativos:
-  https://www.argentina.gob.ar/educacion/evaluacion-e-informacion-educativa/padron-oficial-de-establecimientos-educativos
-  https://datos.gob.ar/dataset/padron-oficial-de-establecimientos-educativos#
-- CSV de nivel primario estatal usado por el script:
-  https://github.com/marianof2000/datasets/raw/main/Nivel_Primario_G_Estatal.csv
-
-
-Primaria 12
-https://maps.app.goo.gl/bexbi8wrMq9CggYU6
+- [Padrón oficial de establecimientos educativos](https://www.argentina.gob.ar/educacion/evaluacion-e-informacion-educativa/padron-oficial-de-establecimientos-educativos)
+- [Datos Argentina: padrón oficial](https://datos.gob.ar/dataset/padron-oficial-de-establecimientos-educativos)
+- [CSV de nivel primario estatal](https://github.com/marianof2000/datasets/raw/main/Nivel_Primario_G_Estatal.csv)
+- [Ubicación de la Escuela Primaria N.º 12](https://maps.app.goo.gl/bexbi8wrMq9CggYU6)
+- [Ubicación de la Escuela Primaria N.º 27](https://maps.app.goo.gl/Gc4M5nnzzdq3H2iG9)

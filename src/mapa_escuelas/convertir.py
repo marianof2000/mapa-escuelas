@@ -17,6 +17,7 @@ from .config import (
 from .funciones import (
     _cargar_primaria,
     _combinar_padron_con_primaria,
+    _etiqueta_padron,
     _nombre_padron,
     listar_padrones,
 )
@@ -69,7 +70,8 @@ def convertir_padrones(
         nombre_padron = _nombre_padron(padron_path)
         escuelas = escuelas.copy()
         escuelas.insert(0, "padron_archivo", padron_path.name)
-        escuelas.insert(0, "padron_nombre", f"Padrón {nombre_padron}")
+        etiqueta_padron = _etiqueta_padron(f"Padrón {nombre_padron}")
+        escuelas.insert(0, "padron_nombre", etiqueta_padron)
         escuelas.insert(0, "padron", _padron_id(nombre_padron))
         resultados.append(escuelas)
 

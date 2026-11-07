@@ -13,10 +13,13 @@ LIMITES_PATH = DATA_DIR / "limite_partidos.geojson"
 DESCRIPCIONES_PATH = DATA_DIR / "descripciones_escuelas.json"
 OUTPUT_PATH = BASE_DIR / "maps-dol.html"
 PADRONES_CSV_PATH = DATA_DIR / "padrones.csv"
+LINKS_PATH = DATA_DIR / "links.csv"
+HISTORIAS_PATH = DATA_DIR / "indice_escuelas_rurales_dolores_CUE.csv"
 
 IMAGENES_POPUP_PATH = BASE_DIR / "img"
 IMAGEN_WEB_PATH = "img"
 IMAGEN_EXTENSION = ".webp"
+IMAGEN_MUESTRA = "escuela-muestra.webp"
 
 PADRON_COLUMNAS_REQUERIDAS = {
     "Cueanexo",
@@ -57,4 +60,6 @@ SPOTIFY_URL = (
 COORDENADAS_OFICIALES = {
     # Escuela Nº27 Sargento Cabral: https://maps.app.goo.gl/Gc4M5nnzzdq3H2iG9
     60828000: (-36.4252262, -57.4676075),
+    # Escuela Nº12 Olegario V andrade: https://maps.app.goo.gl/bexbi8wrMq9CggYU6
+    00000000: (-36.31279,-57.474213)
 }

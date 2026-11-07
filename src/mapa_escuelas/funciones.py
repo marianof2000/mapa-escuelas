@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Funciones para generar el mapa interactivo de escuelas de Dolores."""
 
+from decimal import Decimal, InvalidOperation
 from html import escape
 import json
 import logging
@@ -17,7 +18,10 @@ from .config import (
     DESCRIPCIONES_PATH,
     IMAGENES_POPUP_PATH,
     IMAGEN_EXTENSION,
+    IMAGEN_MUESTRA,
     IMAGEN_WEB_PATH,
+    HISTORIAS_PATH,
+    LINKS_PATH,
     LIMITES_PATH,
     PADRONES_CSV_PATH,
     PADRONES_DIR,
@@ -31,6 +35,7 @@ from .config import (
 
 
 LOGGER = logging.getLogger(__name__)
+PADRON_EXCEL_ENGINE = "calamine"
 
 
 def cargar_limite_dolores(path: Path = LIMITES_PATH) -> str:
@@ -60,25 +65,19 @@ def cargar_limite_dolores(path: Path = LIMITES_PATH) -> str:
     return json.dumps(dolores)
 
 
-def _detectar_hoja_y_header_padron(path: Path) -> tuple[str, int]:
-    """Localiza la hoja y la fila de encabezado de un padron XLSX.
-
-    Precondiciones:
-        ``path`` referencia un libro de Excel legible y sus primeras filas
-        contienen, en alguna hoja, las columnas requeridas del padron.
-    Postcondiciones:
-        Retorna el nombre de la hoja y un indice de fila no negativo; si no se
-        encuentra el encabezado, lanza ``ValueError``.
-    """
-    with pd.ExcelFile(path) as excel:
-        hojas = sorted(
-            excel.sheet_names,
-            key=lambda hoja: 0 if hoja.casefold() == "padron" else 1,
-        )
+def _detectar_hoja_y_header_en_excel(
+    excel: pd.ExcelFile,
+    path: Path,
+) -> tuple[str, int]:
+    """Localiza la hoja y la fila de encabezado en un libro ya abierto."""
+    hojas = sorted(
+        excel.sheet_names,
+        key=lambda hoja: 0 if hoja.casefold() == "padron" else 1,
+    )
 
     for hoja in hojas:
         preview = pd.read_excel(
-            path,
+            excel,
             sheet_name=hoja,
             header=None,
             nrows=PADRON_FILAS_DE_BUSQUEDA,
@@ -95,6 +94,20 @@ def _detectar_hoja_y_header_padron(path: Path) -> tuple[str, int]:
     )
 
 
+def _detectar_hoja_y_header_padron(path: Path) -> tuple[str, int]:
+    """Localiza con Calamine la hoja y la fila de encabezado de un padron XLSX.
+
+    Precondiciones:
+        ``path`` referencia un libro de Excel legible y sus primeras filas
+        contienen, en alguna hoja, las columnas requeridas del padron.
+    Postcondiciones:
+        Retorna el nombre de la hoja y un indice de fila no negativo; si no se
+        encuentra el encabezado, lanza ``ValueError``.
+    """
+    with pd.ExcelFile(path, engine=PADRON_EXCEL_ENGINE) as excel:
+        return _detectar_hoja_y_header_en_excel(excel, path)
+
+
 def _cargar_padron(path: Path) -> pd.DataFrame:
     """Carga un padron y normaliza los nombres de sus columnas.
 
@@ -105,8 +118,9 @@ def _cargar_padron(path: Path) -> pd.DataFrame:
         Retorna un nuevo ``DataFrame`` cuyas etiquetas de columna son cadenas
         sin espacios exteriores; no modifica el libro de origen.
     """
-    hoja, header = _detectar_hoja_y_header_padron(path)
-    padron = pd.read_excel(path, sheet_name=hoja, header=header)
+    with pd.ExcelFile(path, engine=PADRON_EXCEL_ENGINE) as excel:
+        hoja, header = _detectar_hoja_y_header_en_excel(excel, path)
+        padron = pd.read_excel(excel, sheet_name=hoja, header=header)
     padron.columns = [str(columna).strip() for columna in padron.columns]
     return padron
 
@@ -139,6 +153,33 @@ def _nombre_padron(path: Path) -> str:
         return coincidencia.group(1)
 
     return path.stem.replace("_", " ")
+
+
+def _etiqueta_padron(nombre: str) -> str:
+    """Devuelve la etiqueta visible correspondiente a un padron."""
+    if nombre in {"2010", "Padrón 2010"}:
+        return "Anterior a 2011"
+    return nombre
+
+
+def _anio_para_ordenar_padron(nombre: str) -> int:
+    """Obtiene el anio usado para ordenar las etiquetas de padrones."""
+    if nombre == "Anterior a 2011":
+        return 2010
+    coincidencia = re.search(r"20\d{2}", nombre)
+    return int(coincidencia.group()) if coincidencia else -1
+
+
+def _normalizar_cueanexo(valor: object) -> str:
+    """Normaliza un Cueanexo para usarlo como clave entre archivos CSV."""
+    texto = str(valor).strip().replace(",", ".")
+    try:
+        numero = Decimal(texto)
+    except InvalidOperation:
+        return texto
+    if numero == numero.to_integral_value():
+        return format(numero.quantize(Decimal("1")), "f")
+    return format(numero.normalize(), "f")
 
 
 def _cargar_primaria(primaria_url: str = PRIMARIA_URL) -> pd.DataFrame:
@@ -243,7 +284,8 @@ def cargar_escuelas_por_padron(
             LOGGER.warning("Se omite %s: %s", padron_path, exc)
             continue
         if not escuelas.empty:
-            escuelas_por_padron[_nombre_padron(padron_path)] = escuelas
+            nombre = _etiqueta_padron(_nombre_padron(padron_path))
+            escuelas_por_padron[nombre] = escuelas
 
     if not escuelas_por_padron:
         raise ValueError("No se encontraron padrones validos para crear capas")
@@ -253,6 +295,8 @@ def cargar_escuelas_por_padron(
 
 def cargar_escuelas_por_padron_csv(
     path: Path = PADRONES_CSV_PATH,
+    links_path: Path = LINKS_PATH,
+    historias_path: Path = HISTORIAS_PATH,
 ) -> dict[str, pd.DataFrame]:
     """Carga desde CSV las escuelas agrupadas por nombre de padron.
 
@@ -267,8 +311,16 @@ def cargar_escuelas_por_padron_csv(
         raise FileNotFoundError(
             f"No se encontro {path}. Ejecuta `python3 convertir.py` primero."
         )
+    if not links_path.exists():
+        raise FileNotFoundError(f"No se encontro el archivo de enlaces {links_path}")
+    if not historias_path.exists():
+        raise FileNotFoundError(
+            f"No se encontro el archivo de historias {historias_path}"
+        )
 
     padrones = pd.read_csv(path)
+    links = pd.read_csv(links_path, dtype=str)
+    historias = pd.read_csv(historias_path, dtype=str, encoding="utf-8-sig")
     columnas_requeridas = {
         "padron",
         "padron_nombre",
@@ -284,10 +336,64 @@ def cargar_escuelas_por_padron_csv(
         faltantes = ", ".join(columnas_faltantes)
         raise ValueError(f"Faltan columnas en {path}: {faltantes}")
 
+    columnas_links = {"padron", "Cueanexo", "link"}
+    links_faltantes = sorted(columnas_links - set(links.columns))
+    if links_faltantes:
+        faltantes = ", ".join(links_faltantes)
+        raise ValueError(f"Faltan columnas en {links_path}: {faltantes}")
+
+    columnas_historias = {"Cueanexo", "historia"}
+    historias_faltantes = sorted(columnas_historias - set(historias.columns))
+    if historias_faltantes:
+        faltantes = ", ".join(historias_faltantes)
+        raise ValueError(f"Faltan columnas en {historias_path}: {faltantes}")
+
+    padrones = padrones.copy()
+    links = links.copy()
+    padrones["_cue_link"] = padrones["Cueanexo"].map(_normalizar_cueanexo)
+    links["_cue_link"] = links["Cueanexo"].map(_normalizar_cueanexo)
+    if links.duplicated(subset=["padron", "_cue_link"]).any():
+        raise ValueError(f"Hay enlaces duplicados en {links_path}")
+
+    padrones = pd.merge(
+        padrones,
+        links.loc[:, ["padron", "_cue_link", "link"]],
+        how="left",
+        on=["padron", "_cue_link"],
+        validate="one_to_one",
+    ).drop(columns="_cue_link")
+    sin_link = padrones["link"].isna() | padrones["link"].str.strip().eq("")
+    if sin_link.any():
+        cantidad = int(sin_link.sum())
+        raise ValueError(f"Faltan enlaces para {cantidad} marcadores en {links_path}")
+
+    historias = historias.copy()
+    historias["_cue_historia"] = historias["Cueanexo"].fillna("").map(
+        _normalizar_cueanexo
+    )
+    historias = historias[historias["_cue_historia"].ne("")]
+    if historias.duplicated(subset="_cue_historia").any():
+        raise ValueError(f"Hay historias duplicadas por CUE en {historias_path}")
+
+    padrones["_cue_historia"] = padrones["Cueanexo"].map(_normalizar_cueanexo)
+    padrones = pd.merge(
+        padrones,
+        historias.loc[:, ["_cue_historia", "historia"]],
+        how="left",
+        on="_cue_historia",
+        validate="many_to_one",
+    ).drop(columns="_cue_historia")
+    padrones["historia"] = padrones["historia"].fillna(
+        "Historia no disponible."
+    )
+    padrones.loc[padrones["historia"].str.strip().eq(""), "historia"] = (
+        "Historia no disponible."
+    )
+
     padrones = padrones.dropna(subset=["latitud", "longitud"])
     escuelas_por_padron = {}
     for padron, escuelas in padrones.groupby("padron_nombre", sort=False):
-        escuelas_por_padron[str(padron)] = escuelas.copy()
+        escuelas_por_padron[_etiqueta_padron(str(padron))] = escuelas.copy()
 
     if not escuelas_por_padron:
         raise ValueError(f"No hay escuelas con coordenadas en {path}")
@@ -343,7 +449,7 @@ def _ruta_imagen_popup(cueanexo: object) -> Path:
         Retorna una ruta dentro de ``IMAGENES_POPUP_PATH`` con la extension
         configurada; no crea ni modifica el archivo.
     """
-    cueanexo_limpio = str(cueanexo).strip()
+    cueanexo_limpio = _normalizar_cueanexo(cueanexo)
     return IMAGENES_POPUP_PATH / f"{cueanexo_limpio}{IMAGEN_EXTENSION}"
 
 
@@ -353,14 +459,17 @@ def _imagen_popup_src(cueanexo: object) -> str:
     Precondiciones:
         ``cueanexo`` cumple el contrato de :func:`_ruta_imagen_popup`.
     Postcondiciones:
-        Retorna la ruta web relativa si la imagen existe, o una cadena vacia en
-        caso contrario; no modifica el sistema de archivos.
+        Retorna la ruta web de la imagen propia de la escuela cuando existe o
+        la miniatura de muestra configurada como respaldo.
     """
     ruta = _ruta_imagen_popup(cueanexo)
-    if not ruta.exists():
-        return ""
+    if ruta.exists():
+        return f"{IMAGEN_WEB_PATH}/{ruta.name}"
 
-    return f"{IMAGEN_WEB_PATH}/{ruta.name}"
+    ruta_muestra = IMAGENES_POPUP_PATH / IMAGEN_MUESTRA
+    if not ruta_muestra.exists():
+        return ""
+    return f"{IMAGEN_WEB_PATH}/{ruta_muestra.name}"
 
 
 def _crear_popup_html(
@@ -369,6 +478,8 @@ def _crear_popup_html(
     ambito: str,
     cueanexo: object,
     descripcion: str,
+    link: str = "",
+    historia: str = "Historia no disponible.",
 ) -> str:
     """Genera el HTML seguro del popup de una escuela.
 
@@ -383,6 +494,23 @@ def _crear_popup_html(
     imagen_src = _imagen_popup_src(cueanexo)
     imagen_alt = f"Imagen ilustrativa de {escuela}"
     descripcion_html = escape(descripcion).replace("\n", "<br>")
+    descripcion_bloque = ""
+    if descripcion_html:
+        descripcion_bloque = f"""
+            <p class="popup-descripcion">
+                {descripcion_html}
+            </p>
+        """
+    historia_html = escape(historia).replace("\n", "<br>")
+    link_html = ""
+    if link:
+        link_html = f"""
+            <p class="popup-link">
+                <a href="{escape(link)}" target="_blank" rel="noopener noreferrer">
+                    Abrir enlace de la escuela
+                </a>
+            </p>
+        """
     imagen_html = ""
     if imagen_src:
         imagen_html = f"""
@@ -400,6 +528,26 @@ def _crear_popup_html(
                 margin: 0 0 12px;
                 line-height: 1.35;
             }}
+            .popup-contenido {{
+                width: 560px;
+                max-width: calc(100vw - 80px);
+            }}
+            .popup-historia {{
+                max-height: 180px;
+                overflow-y: auto;
+                margin: 0 0 12px;
+                padding: 10px 12px;
+                line-height: 1.4;
+                background: #f5f7fa;
+                border-left: 3px solid #1f4e78;
+            }}
+            .popup-historia p {{
+                margin: 6px 0 0;
+            }}
+            .popup-link a {{
+                display: inline-block;
+                font-weight: 600;
+            }}
             .popup-imagen {{
                 width: 100%;
                 height: 145px;
@@ -416,27 +564,32 @@ def _crear_popup_html(
                 display: block;
             }}
         </style>
-        <h4>
-            {escape(escuela)} <br>
-            {escape(nombre)}
-        </h4>
-        <p>
-            <strong>Ubicación:</strong> {escape(str(domicilio))} <br>
-            <strong>Ambito:</strong> {escape(str(ambito))} <br>
-        </p>
-        <p class="popup-descripcion">
-            {descripcion_html}
-        </p>
-        {imagen_html}
-        <p>
-            <iframe style="border-radius:12px"
-            src="{SPOTIFY_URL}"
-            width="90%" height="100" frameBorder="0"
-            allowfullscreen="" allow="autoplay;
-            clipboard-write; encrypted-media; fullscreen;
-            picture-in-picture" loading="lazy">
-            </iframe>
-        </p>
+        <div class="popup-contenido">
+            <h4>
+                {escape(escuela)} <br>
+                {escape(nombre)}
+            </h4>
+            <p>
+                <strong>Ubicación:</strong> {escape(str(domicilio))} <br>
+                <strong>Ambito:</strong> {escape(str(ambito))} <br>
+            </p>
+            {descripcion_bloque}
+            <div class="popup-historia">
+                <strong>Historia:</strong>
+                <p>{historia_html}</p>
+            </div>
+            {link_html}
+            {imagen_html}
+            <p>
+                <iframe style="border-radius:12px"
+                src="{SPOTIFY_URL}"
+                width="100%" height="100" frameBorder="0"
+                allowfullscreen="" allow="autoplay;
+                clipboard-write; encrypted-media; fullscreen;
+                picture-in-picture" loading="lazy">
+                </iframe>
+            </p>
+        </div>
     """
 
 
@@ -446,17 +599,17 @@ def _crear_popup_desde_html(html: str) -> folium.Popup:
     Precondiciones:
         ``html`` es una cadena con contenido apto para insertar en el mapa.
     Postcondiciones:
-        Retorna un nuevo ``folium.Popup`` con ancho maximo de 420 pixeles; no
+        Retorna un nuevo ``folium.Popup`` con ancho maximo de 600 pixeles; no
         modifica la cadena recibida.
     """
-    return folium.Popup(branca.element.Html(html, script=True), max_width=420)
+    return folium.Popup(branca.element.Html(html, script=True), max_width=600)
 
 
 def _crear_capa_escuelas(
     escuelas: pd.DataFrame,
     descripciones: dict[str, str],
     nombre: str,
-    popup_html_cache: dict[tuple[str, str, str, str], str],
+    popup_html_cache: dict[tuple[str, str, str, str, str, str], str],
     registros_busqueda: list[dict[str, str]],
 ) -> plugins.MarkerCluster:
     """Crea una capa de marcadores para un conjunto de escuelas.
@@ -475,9 +628,20 @@ def _crear_capa_escuelas(
     for escuela in escuelas.itertuples(index=False):
         ambito = getattr(escuela, "Ámbito")
         color = "orange" if ambito == "Rural" else "lightblue"
-        cueanexo = str(escuela.Cueanexo).strip()
-        descripcion = descripciones.get(cueanexo, "Descripción pendiente.")
-        popup_cache_key = (cueanexo, str(escuela.Domicilio), str(ambito), descripcion)
+        cueanexo = _normalizar_cueanexo(escuela.Cueanexo)
+        descripcion = descripciones.get(cueanexo, "").strip()
+        link = str(getattr(escuela, "link", "")).strip()
+        historia = str(
+            getattr(escuela, "historia", "Historia no disponible.")
+        ).strip() or "Historia no disponible."
+        popup_cache_key = (
+            cueanexo,
+            str(escuela.Domicilio),
+            str(ambito),
+            descripcion,
+            link,
+            historia,
+        )
         if popup_cache_key not in popup_html_cache:
             popup_html_cache[popup_cache_key] = _crear_popup_html(
                 escuela.nombre,
@@ -485,6 +649,8 @@ def _crear_capa_escuelas(
                 ambito,
                 escuela.Cueanexo,
                 descripcion,
+                link=link,
+                historia=historia,
             )
         popup_html = popup_html_cache[popup_cache_key]
 
@@ -521,6 +687,7 @@ def _agregar_selector_padrones(
     mapa: folium.Map,
     capas: dict[str, plugins.MarkerCluster],
     nombre_inicial: str,
+    resumenes: dict[str, dict[str, int]],
 ) -> None:
     """Agrega al mapa un selector excluyente de capas de padrones.
 
@@ -533,15 +700,10 @@ def _agregar_selector_padrones(
     """
     opciones = "\n".join(
         f"""
-        <label>
-            <input
-                type="radio"
-                name="padron-selector"
-                value="{escape(nombre)}"
-                {"checked" if nombre == nombre_inicial else ""}
-            >
-            {escape(nombre)}
-        </label>
+        <option
+            value="{escape(nombre)}"
+            {"selected" if nombre == nombre_inicial else ""}
+        >{escape(nombre)}</option>
         """
         for nombre in capas
     )
@@ -549,6 +711,8 @@ def _agregar_selector_padrones(
         f"{json.dumps(nombre)}: {capa.get_name()}" for nombre, capa in capas.items()
     )
     nombre_inicial_js = json.dumps(nombre_inicial)
+    resumenes_js = json.dumps(resumenes, ensure_ascii=False)
+    resumen_inicial = resumenes[nombre_inicial]
 
     template = branca.element.Template(
         f"""
@@ -558,7 +722,22 @@ def _agregar_selector_padrones(
             var capasPadron = {{
                 {capas_js}
             }};
+            var resumenesPadron = {resumenes_js};
             var capaActiva = {nombre_inicial_js};
+
+            function actualizarResumen(nombre) {{
+                var resumen = resumenesPadron[nombre];
+                var rurales = document.querySelector(
+                    ".padron-resumen-rurales strong"
+                );
+                var urbanas = document.querySelector(
+                    ".padron-resumen-urbanas strong"
+                );
+                if (resumen && rurales && urbanas) {{
+                    rurales.textContent = resumen.rurales;
+                    urbanas.textContent = resumen.urbanas;
+                }}
+            }}
 
             Object.keys(capasPadron).forEach(function(nombre) {{
                 if (nombre !== capaActiva && map.hasLayer(capasPadron[nombre])) {{
@@ -570,9 +749,20 @@ def _agregar_selector_padrones(
             control.onAdd = function() {{
                 var div = L.DomUtil.create("div", "padron-selector-control");
                 div.innerHTML = `
-                    <strong>Padrón</strong>
-                    <div class="padron-selector-opciones">
+                    <label for="padron-selector-lista">Padrón</label>
+                    <select
+                        id="padron-selector-lista"
+                        name="padron-selector"
+                    >
                         {opciones}
+                    </select>
+                    <div class="padron-resumen" aria-live="polite">
+                        <span class="padron-resumen-rurales">
+                            Rurales: <strong>{resumen_inicial['rurales']}</strong>
+                        </span>
+                        <span class="padron-resumen-urbanas">
+                            Urbanas: <strong>{resumen_inicial['urbanas']}</strong>
+                        </span>
                     </div>
                 `;
                 L.DomEvent.disableClickPropagation(div);
@@ -582,17 +772,16 @@ def _agregar_selector_padrones(
             control.addTo(map);
 
             document
-                .querySelectorAll(".padron-selector-control input")
-                .forEach(function(input) {{
-                    input.addEventListener("change", function(event) {{
-                        Object.keys(capasPadron).forEach(function(nombre) {{
-                            if (map.hasLayer(capasPadron[nombre])) {{
-                                map.removeLayer(capasPadron[nombre]);
-                            }}
-                        }});
-                        capaActiva = event.target.value;
-                        map.addLayer(capasPadron[capaActiva]);
+                .querySelector(".padron-selector-control select")
+                .addEventListener("change", function(event) {{
+                    Object.keys(capasPadron).forEach(function(nombre) {{
+                        if (map.hasLayer(capasPadron[nombre])) {{
+                            map.removeLayer(capasPadron[nombre]);
+                        }}
                     }});
+                    capaActiva = event.target.value;
+                    map.addLayer(capasPadron[capaActiva]);
+                    actualizarResumen(capaActiva);
                 }});
         }})();
         {{% endmacro %}}
@@ -623,18 +812,27 @@ def _agregar_estilos_selector_padrones(mapa: folium.Map) -> None:
                 box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
                 font: 13px/1.3 Arial, sans-serif;
             }
-            .padron-selector-control strong {
-                display: block;
-                margin-bottom: 8px;
-            }
             .padron-selector-control label {
                 display: block;
-                margin: 0 0 6px;
+                margin-bottom: 8px;
+                font-weight: 700;
+            }
+            .padron-selector-control select {
+                width: 100%;
+                padding: 6px 8px;
+                border: 1px solid #aeb6bf;
+                border-radius: 4px;
+                background: #fff;
+                font: inherit;
                 cursor: pointer;
             }
-            .padron-selector-control input {
-                margin: 0 6px 0 0;
-                vertical-align: middle;
+            .padron-resumen {
+                display: flex;
+                gap: 12px;
+                margin-top: 9px;
+                padding-top: 8px;
+                border-top: 1px solid #d8dde3;
+                white-space: nowrap;
             }
             .buscador-escuelas-control {
                 position: relative;
@@ -760,20 +958,20 @@ def _agregar_buscador_escuelas(
                 }}
 
                 function abrirEscuela(item) {{
-                    capas.forEach(function(capa) {{
-                        if (map.hasLayer(capa)) {{
-                            map.removeLayer(capa);
-                        }}
-                    }});
-                    map.addLayer(item.capa);
-
-                    document
-                        .querySelectorAll(
-                            '.padron-selector-control input[name="padron-selector"]'
-                        )
-                        .forEach(function(radio) {{
-                            radio.checked = radio.value === item.padron;
+                    var selectorPadron = document.querySelector(
+                        '.padron-selector-control select[name="padron-selector"]'
+                    );
+                    if (selectorPadron) {{
+                        selectorPadron.value = item.padron;
+                        selectorPadron.dispatchEvent(new Event("change"));
+                    }} else {{
+                        capas.forEach(function(capa) {{
+                            if (map.hasLayer(capa)) {{
+                                map.removeLayer(capa);
+                            }}
                         }});
+                        map.addLayer(item.capa);
+                    }}
 
                     if (typeof item.capa.zoomToShowLayer === "function") {{
                         item.capa.zoomToShowLayer(item.marcador, function() {{
@@ -871,7 +1069,8 @@ def crear_mapa(
         modifica los argumentos recibidos.
     """
     if isinstance(escuelas_por_padron, pd.DataFrame):
-        escuelas_por_padron = {_nombre_padron(PADRON_PATH): escuelas_por_padron}
+        nombre = _etiqueta_padron(_nombre_padron(PADRON_PATH))
+        escuelas_por_padron = {nombre: escuelas_por_padron}
 
     mapa = folium.Map(
         location=[-36.316076, -57.674351],
@@ -886,9 +1085,15 @@ def crear_mapa(
     folium.GeoJson(limite_dolores).add_to(mapa)
 
     capas = {}
+    resumenes = {}
     popup_html_cache = {}
     registros_busqueda = []
-    for nombre, escuelas in escuelas_por_padron.items():
+    padrones_ordenados = sorted(
+        escuelas_por_padron.items(),
+        key=lambda item: _anio_para_ordenar_padron(item[0]),
+        reverse=True,
+    )
+    for nombre, escuelas in padrones_ordenados:
         capa = _crear_capa_escuelas(
             escuelas,
             descripciones,
@@ -898,11 +1103,23 @@ def crear_mapa(
         )
         capa.add_to(mapa)
         capas[nombre] = capa
+        ambitos = escuelas["Ámbito"].astype(str).str.strip().str.casefold()
+        resumenes[nombre] = {
+            "rurales": int(ambitos.eq("rural").sum()),
+            "urbanas": int(ambitos.eq("urbano").sum()),
+        }
 
     if capas:
-        nombre_inicial = next(reversed(capas))
+        nombre_inicial = next(
+            (
+                nombre
+                for nombre in capas
+                if _anio_para_ordenar_padron(nombre) == 2026
+            ),
+            next(iter(capas)),
+        )
         _agregar_estilos_selector_padrones(mapa)
-        _agregar_selector_padrones(mapa, capas, nombre_inicial)
+        _agregar_selector_padrones(mapa, capas, nombre_inicial, resumenes)
         _agregar_buscador_escuelas(mapa, registros_busqueda)
 
     MiniMap().add_to(mapa)

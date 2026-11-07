@@ -6,16 +6,25 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
+
 from src.mapa_escuelas.config import (
     DESCRIPCIONES_PATH,
+    HISTORIAS_PATH,
     IMAGENES_POPUP_PATH,
+    LINKS_PATH,
     PADRON_PATH,
 )
 from src.mapa_escuelas.convertir import _completar_coordenadas_mas_recientes
 from src.mapa_escuelas.funciones import (
     _combinar_padron_con_primaria,
+    _crear_popup_desde_html,
+    _crear_popup_html,
     _detectar_hoja_y_header_padron,
+    _etiqueta_padron,
     _imagen_popup_src,
+    _anio_para_ordenar_padron,
+    _normalizar_cueanexo,
     _nombre_padron,
     cargar_escuelas_por_padron_csv,
     crear_mapa,
@@ -30,6 +39,45 @@ class ValidacionProyectoTest(unittest.TestCase):
 
     def test_imagen_popup_usa_ruta_webp_relativa(self) -> None:
         self.assertEqual(_imagen_popup_src("60828200"), "img/60828200.webp")
+        self.assertEqual(_imagen_popup_src("60828200.0"), "img/60828200.webp")
+
+    def test_imagen_popup_usa_muestra_si_no_hay_foto(self) -> None:
+        self.assertEqual(
+            _imagen_popup_src("60200000"),
+            "img/escuela-muestra.webp",
+        )
+
+    def test_popup_es_mas_ancho_y_adaptable(self) -> None:
+        html = _crear_popup_html(
+            "EP 1",
+            "DOMICILIO",
+            "Urbano",
+            1,
+            "Texto",
+            link="https://escuelas-dolores.example/padron_2010/1",
+            historia="Historia <rural> de prueba",
+        )
+        popup = _crear_popup_desde_html(html)
+
+        self.assertIn("width: 560px", html)
+        self.assertIn("max-width: calc(100vw - 80px)", html)
+        self.assertIn("Abrir enlace de la escuela", html)
+        self.assertIn("Historia:", html)
+        self.assertIn("Historia &lt;rural&gt; de prueba", html)
+        self.assertEqual(popup.options["max_width"], 600)
+
+    def test_popup_sin_descripcion_no_muestra_texto_pendiente(self) -> None:
+        html = _crear_popup_html(
+            "EP 1",
+            "DOMICILIO",
+            "Rural",
+            1,
+            "",
+            historia="Historia disponible",
+        )
+
+        self.assertNotIn("Descripción pendiente", html)
+        self.assertNotIn('class="popup-descripcion"', html)
 
     def test_detecta_header_padron_actual(self) -> None:
         hoja, header = _detectar_hoja_y_header_padron(PADRON_PATH)
@@ -46,6 +94,24 @@ class ValidacionProyectoTest(unittest.TestCase):
             "2024",
         )
 
+    def test_padron_2010_se_muestra_como_anterior_a_2011(self) -> None:
+        self.assertEqual(_etiqueta_padron("Padrón 2010"), "Anterior a 2011")
+        self.assertEqual(_etiqueta_padron("Padrón 2011"), "Padrón 2011")
+
+    def test_padrones_se_ordenan_desde_2026(self) -> None:
+        nombres = ["Anterior a 2011", "Padrón 2011", "Padrón 2026"]
+
+        ordenados = sorted(
+            nombres,
+            key=_anio_para_ordenar_padron,
+            reverse=True,
+        )
+
+        self.assertEqual(
+            ordenados,
+            ["Padrón 2026", "Padrón 2011", "Anterior a 2011"],
+        )
+
     def test_csv_de_padron_incluye_columnas_para_mapa(self) -> None:
         primaria = _primaria_de_prueba()
         escuelas = _combinar_padron_con_primaria(PADRON_PATH, primaria)
@@ -55,9 +121,26 @@ class ValidacionProyectoTest(unittest.TestCase):
     def test_mapa_carga_capas_desde_padrones_csv(self) -> None:
         capas = cargar_escuelas_por_padron_csv()
         self.assertTrue(capas)
+        self.assertIn("Anterior a 2011", capas)
+        self.assertNotIn("Padrón 2010", capas)
+        cantidad_links = sum(len(escuelas) for escuelas in capas.values())
+        self.assertEqual(cantidad_links, len(pd.read_csv(LINKS_PATH)))
         for escuelas in capas.values():
             for columna in ("Cueanexo", "nombre", "latitud", "longitud"):
                 self.assertIn(columna, escuelas.columns)
+            self.assertTrue(escuelas["link"].str.startswith("https://").all())
+            self.assertTrue(escuelas["historia"].str.strip().ne("").all())
+
+        escuelas = pd.concat(capas.values(), ignore_index=True)
+        ep_12 = escuelas[
+            escuelas["Cueanexo"].map(_normalizar_cueanexo).eq("60200000")
+        ]
+        self.assertFalse(ep_12.empty)
+        self.assertTrue(ep_12["historia"].str.contains("1960").all())
+        self.assertTrue(
+            escuelas["historia"].eq("Historia no disponible.").any()
+        )
+        self.assertTrue(HISTORIAS_PATH.exists())
 
     def test_combina_por_partido_y_no_solo_por_localidad(self) -> None:
         import pandas as pd
@@ -241,6 +324,13 @@ class ValidacionProyectoTest(unittest.TestCase):
 
         self.assertIn("buscador-escuelas-control", html)
         self.assertIn("Buscar escuela, CUE, domicilio", html)
+        self.assertIn("<select", html)
+        self.assertIn('name="padron-selector"', html)
+        self.assertNotIn('type="radio"', html)
+        self.assertIn("padron-resumen-rurales", html)
+        self.assertIn("padron-resumen-urbanas", html)
+        self.assertIn("Rurales: <strong>0</strong>", html)
+        self.assertIn("Urbanas: <strong>1</strong>", html)
         self.assertIn("60827900", html)
         self.assertIn("MARQUEZ 50", html)
 
