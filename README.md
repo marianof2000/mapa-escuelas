@@ -39,7 +39,7 @@ historia, enlace, imagen y reproductor de Spotify.
 - `src/mapa_escuelas/config.py`: contiene rutas, URLs y coordenadas oficiales.
 - `data/padrones/`: padrones oficiales en formato XLSX, de 2010 a 2026.
 - `data/padrones.csv`: padrón consolidado que utiliza el mapa.
-- `data/links.csv`: enlace asociado a cada marcador.
+- `data/links.csv`: un enlace único asociado a cada `Cueanexo`.
 - `data/indice_escuelas_rurales_dolores_CUE.csv`: historias de las escuelas,
   relacionadas mediante `Cueanexo`.
 - `data/limite_partidos.geojson`: límite geográfico del partido de Dolores.
@@ -86,6 +86,7 @@ Es la capa de acceso y preparación de datos. Sus responsabilidades son:
 - leer los XLSX mediante pandas y Calamine;
 - filtrar escuelas primarias estatales del partido de Dolores;
 - normalizar `Cueanexo` para usarlo como clave entre fuentes;
+- normalizar el nombre visible de cada pin desde `nombre` o `Nombre`;
 - cargar `padrones.csv`, `links.csv` y las historias;
 - validar columnas, claves duplicadas y enlaces faltantes;
 - unir enlaces e historias con cada marcador;
@@ -276,15 +277,17 @@ mapa-escuelas-convertir \
 
 ## Enlaces
 
-`data/links.csv` debe contener una fila por marcador y estas columnas:
+`data/links.csv` debe contener una sola fila por `Cueanexo` y estas columnas:
 
 ```text
-padron,Cueanexo,link
+Cueanexo,link,Nombre
 ```
 
-La combinación se realiza mediante el identificador del padrón y el
-`Cueanexo`. La generación se detiene si falta un enlace o si hay claves
-duplicadas.
+La combinación se realiza únicamente mediante `Cueanexo`, por lo que el mismo
+enlace se reutiliza en todos los padrones donde aparece la escuela. La
+columna `Nombre` facilita la identificación manual de cada fila, pero no se usa
+como clave. La generación se detiene si falta un enlace o nombre, o si hay CUE
+duplicados.
 
 ## Historias
 

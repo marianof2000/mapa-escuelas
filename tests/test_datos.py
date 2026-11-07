@@ -52,9 +52,9 @@ def crear_fuentes_csv(directorio: Path) -> tuple[Path, Path, Path]:
     pd.DataFrame(
         [
             {
-                "padron": "padron_2026",
                 "Cueanexo": 1,
                 "link": "https://example.test/1",
+                "Nombre": "ESCUELA PRIMARIA Nº1",
             }
         ]
     ).to_csv(links_path, index=False)
@@ -185,8 +185,8 @@ class DatosTest(unittest.TestCase):
         self.assertTrue(capas)
         self.assertIn("Anterior a 2011", capas)
         self.assertNotIn("Padrón 2010", capas)
-        cantidad_links = sum(len(escuelas) for escuelas in capas.values())
-        self.assertEqual(cantidad_links, len(pd.read_csv(LINKS_PATH)))
+        links = pd.read_csv(LINKS_PATH, dtype=str)
+        self.assertFalse(links["Cueanexo"].duplicated().any())
         for escuelas in capas.values():
             for columna in ("Cueanexo", "nombre", "latitud", "longitud"):
                 self.assertIn(columna, escuelas.columns)
@@ -201,6 +201,39 @@ class DatosTest(unittest.TestCase):
         self.assertTrue(ep_12["historia"].str.contains("1960").all())
         self.assertTrue(escuelas["historia"].eq("Historia no disponible.").any())
         self.assertTrue(HISTORIAS_PATH.exists())
+
+    def test_nombre_del_pin_admite_nombre_en_ambas_mayusculas(self) -> None:
+        """Verifica el uso alternativo de las columnas ``nombre`` y ``Nombre``.
+
+        Precondiciones:
+            Se puede crear un directorio temporal con fuentes CSV validas.
+        Postcondiciones:
+            Confirma que ``Nombre`` se normaliza como ``nombre`` y completa los
+            valores vacios de la columna en minuscula.
+        """
+        casos = (
+            (False, "ESCUELA DESDE NOMBRE MAYUSCULA"),
+            (True, "ESCUELA ALTERNATIVA"),
+        )
+        for conservar_minuscula, nombre_esperado in casos:
+            with (
+                self.subTest(conservar_minuscula=conservar_minuscula),
+                tempfile.TemporaryDirectory() as tmp,
+            ):
+                rutas = crear_fuentes_csv(Path(tmp))
+                padrones = pd.read_csv(rutas[0])
+                if conservar_minuscula:
+                    padrones["nombre"] = " "
+                    padrones["Nombre"] = nombre_esperado
+                else:
+                    padrones = padrones.rename(columns={"nombre": "Nombre"})
+                    padrones["Nombre"] = nombre_esperado
+                padrones.to_csv(rutas[0], index=False)
+
+                capas = cargar_escuelas_por_padron_csv(*rutas)
+
+                escuela = capas["Padrón 2026"].iloc[0]
+                self.assertEqual(escuela["nombre"], nombre_esperado)
 
     def test_combina_por_partido_y_no_solo_por_localidad(self) -> None:
         """Verifica que el filtro territorial use el partido de Dolores.
@@ -275,7 +308,12 @@ class DatosTest(unittest.TestCase):
             ``ValueError`` descriptivo.
         """
         casos = (
-            (0, pd.DataFrame({"padron": ["padron_2026"]})),
+            (
+                0,
+                pd.DataFrame(
+                    {"padron": ["padron_2026"], "nombre": ["ESCUELA"]}
+                ),
+            ),
             (1, pd.DataFrame({"padron": ["padron_2026"]})),
             (2, pd.DataFrame({"Cueanexo": [1]})),
         )
@@ -287,7 +325,7 @@ class DatosTest(unittest.TestCase):
                     cargar_escuelas_por_padron_csv(*rutas)
 
     def test_rechaza_enlaces_duplicados(self) -> None:
-        """Verifica el rechazo de enlaces duplicados por padron y CUE.
+        """Verifica el rechazo de enlaces duplicados por CUE.
 
         Precondiciones:
             Se puede crear un directorio temporal con fuentes CSV de prueba.
@@ -298,12 +336,33 @@ class DatosTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             padrones_path, links_path, historias_path = crear_fuentes_csv(Path(tmp))
             enlace = {
-                "padron": "padron_2026",
                 "Cueanexo": 1,
                 "link": "https://example.test/1",
+                "Nombre": "ESCUELA PRIMARIA Nº1",
             }
             pd.DataFrame([enlace, enlace]).to_csv(links_path, index=False)
             with self.assertRaisesRegex(ValueError, "enlaces duplicados"):
+                cargar_escuelas_por_padron_csv(
+                    padrones_path,
+                    links_path,
+                    historias_path,
+                )
+
+    def test_rechaza_nombre_vacio_en_links(self) -> None:
+        """Verifica que cada enlace tenga un nombre para lectura manual.
+
+        Precondiciones:
+            Se puede crear un directorio temporal con fuentes CSV de prueba.
+        Postcondiciones:
+            Confirma que un ``Nombre`` vacio en ``links.csv`` produce
+            ``ValueError``.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            padrones_path, links_path, historias_path = crear_fuentes_csv(Path(tmp))
+            pd.DataFrame(
+                [{"Cueanexo": 1, "link": "https://example.test/1", "Nombre": ""}]
+            ).to_csv(links_path, index=False)
+            with self.assertRaisesRegex(ValueError, "Faltan nombres"):
                 cargar_escuelas_por_padron_csv(
                     padrones_path,
                     links_path,

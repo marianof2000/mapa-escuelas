@@ -256,6 +256,7 @@ def cargar_escuelas_por_padron_csv(
         links_path,
         historias_path,
     )
+    padrones = _normalizar_nombre_escuela(padrones, path)
     _validar_columnas_requeridas(
         padrones,
         {
@@ -272,7 +273,7 @@ def cargar_escuelas_por_padron_csv(
     )
     _validar_columnas_requeridas(
         links,
-        {"padron", "Cueanexo", "link"},
+        {"Cueanexo", "link", "Nombre"},
         links_path,
     )
     _validar_columnas_requeridas(
@@ -320,6 +321,46 @@ def _cargar_fuentes_mapa(
     return padrones, links, historias
 
 
+def _normalizar_nombre_escuela(
+    padrones: pd.DataFrame,
+    path: Path,
+) -> pd.DataFrame:
+    """Unifica ``nombre`` y ``Nombre`` para construir los pines del mapa.
+
+    Precondiciones:
+        ``padrones`` representa el contenido leido desde ``path``.
+    Postcondiciones:
+        Retorna una copia con ``nombre`` completo y sin espacios exteriores,
+        priorizando esa columna y usando ``Nombre`` como alternativa; lanza
+        ``ValueError`` si no existe ninguna o quedan filas sin denominacion.
+    """
+    columnas_disponibles = {"nombre", "Nombre"} & set(padrones.columns)
+    if not columnas_disponibles:
+        raise ValueError(
+            f"Falta una columna de nombre de escuela en {path}: nombre o Nombre"
+        )
+
+    resultado = padrones.copy()
+    if "nombre" in resultado.columns:
+        nombres = resultado["nombre"].fillna("").astype(str).str.strip()
+    else:
+        nombres = pd.Series("", index=resultado.index, dtype="string")
+
+    if "Nombre" in resultado.columns:
+        nombres_alternativos = (
+            resultado["Nombre"].fillna("").astype(str).str.strip()
+        )
+        nombres = nombres.mask(nombres.eq(""), nombres_alternativos)
+
+    sin_nombre = nombres.eq("")
+    if sin_nombre.any():
+        cantidad = int(sin_nombre.sum())
+        raise ValueError(f"Falta el nombre de {cantidad} escuelas en {path}")
+
+    resultado["nombre"] = nombres
+    return resultado
+
+
 def _validar_columnas_requeridas(
     datos: pd.DataFrame,
     columnas_requeridas: set[str],
@@ -345,28 +386,33 @@ def _incorporar_links(
     links: pd.DataFrame,
     links_path: Path,
 ) -> pd.DataFrame:
-    """Une cada marcador con su enlace mediante padron y CUE.
+    """Une cada marcador con el enlace unico de su CUE.
 
     Precondiciones:
-        ``padrones`` y ``links`` contienen ``padron`` y ``Cueanexo``;
-        ``links`` tambien contiene ``link`` y sus columnas ya fueron validadas.
+        ``padrones`` y ``links`` contienen ``Cueanexo``; ``links`` tambien
+        contiene ``link`` y ``Nombre`` y sus columnas ya fueron validadas.
     Postcondiciones:
         Retorna un nuevo ``DataFrame`` con un enlace no vacio por marcador;
-        lanza ``ValueError`` ante claves duplicadas o enlaces faltantes.
+        lanza ``ValueError`` ante CUE duplicados, enlaces faltantes o nombres
+        de referencia vacios.
     """
     padrones = padrones.copy()
     links = links.copy()
     padrones["_cue_link"] = padrones["Cueanexo"].map(_normalizar_cueanexo)
     links["_cue_link"] = links["Cueanexo"].map(_normalizar_cueanexo)
-    if links.duplicated(subset=["padron", "_cue_link"]).any():
+    if links.duplicated(subset="_cue_link").any():
         raise ValueError(f"Hay enlaces duplicados en {links_path}")
+    nombres_vacios = links["Nombre"].isna() | links["Nombre"].str.strip().eq("")
+    if nombres_vacios.any():
+        cantidad = int(nombres_vacios.sum())
+        raise ValueError(f"Faltan nombres para {cantidad} CUE en {links_path}")
 
     padrones = pd.merge(
         padrones,
-        links.loc[:, ["padron", "_cue_link", "link"]],
+        links.loc[:, ["_cue_link", "link"]],
         how="left",
-        on=["padron", "_cue_link"],
-        validate="one_to_one",
+        on="_cue_link",
+        validate="many_to_one",
     ).drop(columns="_cue_link")
     sin_link = padrones["link"].isna() | padrones["link"].str.strip().eq("")
     if sin_link.any():
