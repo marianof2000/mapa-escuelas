@@ -166,7 +166,8 @@ operaciones:
 1. cargar el límite geográfico;
 2. cargar las escuelas agrupadas por padrón;
 3. construir el mapa mediante `mapa.py`;
-4. guardar el resultado en `maps-dol.html`.
+4. guardar y compactar el resultado en `maps-dol.html`, eliminando líneas
+   vacías e indentación innecesaria sin retirar contenido.
 
 Puede ejecutarse con:
 
