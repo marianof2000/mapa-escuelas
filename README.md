@@ -44,7 +44,12 @@ historia, enlace, imagen y reproductor de Spotify.
   relacionadas mediante `Cueanexo`.
 - `data/limite_partidos.geojson`: límite geográfico del partido de Dolores.
 - `img/`: fotografías de las escuelas y miniatura genérica.
-- `tests/test_validacion.py`: pruebas automatizadas del proyecto.
+- `tests/test_datos.py`: pruebas de lectura, validación y combinación de fuentes.
+- `tests/test_convertir.py`: pruebas de las estrategias de coordenadas.
+- `tests/test_mapa.py`: pruebas de composición y controles del mapa.
+- `tests/test_popups.py`: pruebas de las fichas emergentes.
+- `tests/test_contratos.py`: controla type hints y contratos de todas las
+  funciones Python.
 - `maps-dol.html`: mapa generado.
 - `index.html`: página contenedora que muestra el mapa en un `iframe`.
 
@@ -136,6 +141,7 @@ Recibe datos ya preparados y delega la ficha de cada marcador a `popups.py`.
 directorio `templates/` mantiene separados de Python:
 
 - `controles.css`: estilos del selector, resumen y buscador;
+- `popups.css`: estilos compartidos por todas las fichas emergentes;
 - `selector_padrones.js.jinja`: comportamiento del selector de padrones;
 - `buscador_escuelas.js.jinja`: búsqueda, cambio de capa y apertura de fichas.
 
@@ -182,6 +188,13 @@ ejecuta procesos ni expone estado mutable.
 - Configuración general del mapa y componentes Folium: `mapa.py`.
 - Rutas, URLs y constantes compartidas: `config.py`.
 - Secuencia para generar el archivo final: `generar_mapa.py`.
+
+### Convenciones de las funciones Python
+
+Toda función o método nuevo o modificado debe declarar type hints para cada
+parámetro y para el valor de retorno. Su docstring también debe incluir
+secciones explícitas de `Precondiciones:` y `Postcondiciones:` que describan
+los requisitos de entrada, los efectos, el resultado y los errores relevantes.
 
 ## Requisitos
 
@@ -317,15 +330,16 @@ conversión y luego regenerar el mapa.
 
 ## Validar el proyecto
 
-Las pruebas no requieren internet:
+Las pruebas no requieren internet una vez sincronizado el entorno:
 
 ```bash
-python3 -m unittest discover -s tests -v
+uv run pytest -q
 ```
 
 Las validaciones comprueban, entre otros puntos, la lectura de padrones, las
 coordenadas, las imágenes, los enlaces, las historias, el selector desplegable,
-el orden de los años, el resumen rural/urbano y el buscador.
+el orden de los años, el resumen rural/urbano, el buscador y que todas las
+funciones Python tengan type hints y contratos completos.
 
 ## Publicación
 

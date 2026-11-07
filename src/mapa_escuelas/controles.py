@@ -92,7 +92,15 @@ def _crear_capa_escuelas(
 
 
 def _crear_macro(nombre_plantilla: str, **contexto: object) -> branca.element.MacroElement:
-    """Crea un macro Folium y le asigna el contexto de una plantilla."""
+    """Crea un macro Folium y le asigna el contexto de una plantilla.
+
+    Precondiciones:
+        ``nombre_plantilla`` identifica una plantilla legible incluida en el
+        paquete y las claves de ``contexto`` son nombres de atributos validos.
+    Postcondiciones:
+        Retorna un nuevo ``MacroElement`` configurado con la plantilla y el
+        contexto recibidos; no modifica los argumentos.
+    """
     macro = branca.element.MacroElement()
     macro._template = branca.element.Template(cargar_plantilla(nombre_plantilla))
     for nombre, valor in contexto.items():
@@ -106,7 +114,15 @@ def _agregar_selector_padrones(
     nombre_inicial: str,
     resumenes: dict[str, dict[str, int]],
 ) -> None:
-    """Agrega al mapa el selector de padrón y su resumen por ámbito."""
+    """Agrega al mapa el selector de padrón y su resumen por ámbito.
+
+    Precondiciones:
+        ``capas`` y ``resumenes`` contienen las mismas claves, no estan vacios,
+        ``nombre_inicial`` pertenece a ambos y ``mapa`` es modificable.
+    Postcondiciones:
+        Agrega a ``mapa`` un macro con el selector y el resumen inicial;
+        retorna ``None`` y no modifica las colecciones recibidas.
+    """
     opciones_html = "\n".join(
         (
             f'<option value="{escape(nombre)}" '
@@ -134,7 +150,15 @@ def _agregar_selector_padrones(
 
 
 def _agregar_estilos_selector_padrones(mapa: folium.Map) -> None:
-    """Agrega al encabezado los estilos compartidos por los controles."""
+    """Agrega al encabezado los estilos compartidos por los controles.
+
+    Precondiciones:
+        ``mapa`` posee un elemento raiz y la plantilla ``controles.css`` esta
+        disponible en el paquete.
+    Postcondiciones:
+        Agrega una unica etiqueta ``style`` durante esta invocacion al
+        encabezado de ``mapa`` y retorna ``None``.
+    """
     css = cargar_plantilla("controles.css")
     mapa.get_root().header.add_child(folium.Element(f"<style>\n{css}\n</style>"))
 
@@ -143,7 +167,15 @@ def _agregar_buscador_escuelas(
     mapa: folium.Map,
     registros: list[dict[str, str]],
 ) -> None:
-    """Agrega el buscador que activa capas y abre marcadores."""
+    """Agrega el buscador que activa capas y abre marcadores.
+
+    Precondiciones:
+        Cada elemento de ``registros`` contiene ``etiqueta``, ``texto``,
+        ``padron``, ``marcador`` y ``capa``; ``mapa`` es modificable.
+    Postcondiciones:
+        Agrega a ``mapa`` un macro de busqueda construido con todos los
+        registros, retorna ``None`` y no modifica la lista recibida.
+    """
     registros_js = ",\n".join(
         "{" + ",".join(
             (

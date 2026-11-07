@@ -11,6 +11,11 @@ dependencies = [
     "python-calamine>=0.4.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 mapa-escuelas-generar = "src.mapa_escuelas.generar_mapa:main"
 mapa-escuelas-convertir = "src.mapa_escuelas.convertir:main"

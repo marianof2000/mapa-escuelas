@@ -101,12 +101,42 @@ def _completar_coordenadas_mas_recientes(
         configuradas prevalecen sobre las demas fuentes; lanza ``ValueError`` si
         no puede completar alguna escuela.
     """
+    resultado = _aplicar_coordenadas_oficiales(padrones)
+    resultado = _completar_coordenadas_por_cue(resultado)
+    resultado = _completar_coordenadas_por_ubicacion(resultado)
+    _validar_coordenadas_completas(resultado)
+    return resultado
+
+
+def _aplicar_coordenadas_oficiales(padrones: pd.DataFrame) -> pd.DataFrame:
+    """Aplica las coordenadas oficiales configuradas por CUE.
+
+    Precondiciones:
+        ``padrones`` contiene ``Cueanexo``, ``latitud`` y ``longitud``.
+    Postcondiciones:
+        Retorna una copia donde las coordenadas oficiales reemplazan cualquier
+        valor del mismo CUE; no modifica el ``DataFrame`` recibido.
+    """
     resultado = padrones.copy()
     cueanexos_numericos = pd.to_numeric(resultado["Cueanexo"], errors="coerce")
     for cueanexo, (latitud, longitud) in COORDENADAS_OFICIALES.items():
         escuela = cueanexos_numericos.eq(cueanexo)
         resultado.loc[escuela, "latitud"] = latitud
         resultado.loc[escuela, "longitud"] = longitud
+    return resultado
+
+
+def _completar_coordenadas_por_cue(padrones: pd.DataFrame) -> pd.DataFrame:
+    """Completa ubicaciones con el ultimo par disponible para cada CUE.
+
+    Precondiciones:
+        ``padrones`` contiene ``Cueanexo``, ``latitud`` y ``longitud`` y sus
+        filas estan ordenadas desde el periodo mas antiguo al mas reciente.
+    Postcondiciones:
+        Retorna una copia que completa cada par faltante cuando el mismo CUE
+        posee coordenadas posteriores; conserva los pares existentes.
+    """
+    resultado = padrones.copy()
 
     coordenadas_completas = resultado.dropna(subset=["latitud", "longitud"])
     coordenadas_recientes = coordenadas_completas.drop_duplicates(
@@ -122,6 +152,22 @@ def _completar_coordenadas_mas_recientes(
 
     resultado.loc[completar, "latitud"] = latitud_reciente[completar]
     resultado.loc[completar, "longitud"] = longitud_reciente[completar]
+    return resultado
+
+
+def _completar_coordenadas_por_ubicacion(
+    padrones: pd.DataFrame,
+) -> pd.DataFrame:
+    """Completa ubicaciones mediante departamento, localidad y domicilio.
+
+    Precondiciones:
+        ``padrones`` contiene ``Departamento``, ``Localidad``, ``Domicilio``,
+        ``latitud`` y ``longitud`` y esta ordenado cronologicamente.
+    Postcondiciones:
+        Retorna una copia que completa pares faltantes con la coincidencia de
+        ubicacion mas reciente y no conserva las columnas auxiliares.
+    """
+    resultado = padrones.copy()
 
     columnas_ubicacion = ["Departamento", "Localidad", "Domicilio"]
     claves_normalizadas = []
@@ -152,17 +198,25 @@ def _completar_coordenadas_mas_recientes(
     completar = necesita_coordenadas & tiene_dato_ubicacion
     resultado.loc[completar, "latitud"] = latitud_ubicacion[completar]
     resultado.loc[completar, "longitud"] = longitud_ubicacion[completar]
-    resultado = resultado.drop(columns=claves_normalizadas)
+    return resultado.drop(columns=claves_normalizadas)
 
-    faltantes = resultado[["latitud", "longitud"]].isna().any(axis=1)
+
+def _validar_coordenadas_completas(padrones: pd.DataFrame) -> None:
+    """Valida que todas las filas posean un par de coordenadas completo.
+
+    Precondiciones:
+        ``padrones`` contiene ``Cueanexo``, ``latitud`` y ``longitud``.
+    Postcondiciones:
+        Retorna ``None`` cuando todas las coordenadas estan completas; lanza
+        ``ValueError`` con los CUE afectados en caso contrario.
+    """
+    faltantes = padrones[["latitud", "longitud"]].isna().any(axis=1)
     if faltantes.any():
         cueanexos = ", ".join(
-            sorted(resultado.loc[faltantes, "Cueanexo"].astype(str).unique())
+            sorted(padrones.loc[faltantes, "Cueanexo"].astype(str).unique())
         )
         mensaje = f"No se encontraron coordenadas para los Cueanexo: {cueanexos}"
         raise ValueError(mensaje)
-
-    return resultado
 
 
 def _padron_id(nombre_padron: str) -> str:

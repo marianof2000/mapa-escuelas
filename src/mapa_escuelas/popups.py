@@ -9,6 +9,21 @@ from .config import (
     IMAGEN_WEB_PATH, SPOTIFY_URL,
 )
 from .datos import _normalizar_cueanexo
+from .plantillas import cargar_plantilla
+
+
+def _agregar_estilos_popups(mapa: folium.Map) -> None:
+    """Agrega una sola vez al mapa los estilos compartidos por los popups.
+
+    Precondiciones:
+        ``mapa`` posee un elemento raiz y la plantilla ``popups.css`` esta
+        disponible dentro del paquete.
+    Postcondiciones:
+        Agrega una etiqueta ``style`` al encabezado de ``mapa`` durante esta
+        invocacion y retorna ``None``.
+    """
+    css = cargar_plantilla("popups.css")
+    mapa.get_root().header.add_child(folium.Element(f"<style>\n{css}\n</style>"))
 
 def _separar_nombre(nombre_completo: str) -> tuple[str, str]:
     """Separa la denominacion de escuela de su nombre propio entre comillas.
@@ -99,43 +114,6 @@ def _crear_popup_html(
         </figure>
         """
     return f"""
-        <style>
-            .popup-contenido {{
-                width: 560px;
-                max-width: calc(100vw - 80px);
-            }}
-            .popup-historia {{
-                max-height: 180px;
-                overflow-y: auto;
-                margin: 0 0 12px;
-                padding: 10px 12px;
-                line-height: 1.4;
-                background: #f5f7fa;
-                border-left: 3px solid #1f4e78;
-            }}
-            .popup-historia p {{
-                margin: 6px 0 0;
-            }}
-            .popup-link a {{
-                display: inline-block;
-                font-weight: 600;
-            }}
-            .popup-imagen {{
-                width: 100%;
-                height: 145px;
-                margin: 0 0 14px;
-                border-radius: 12px;
-                overflow: hidden;
-                background: #eef1f4;
-                border: 1px solid #d8dde3;
-            }}
-            .popup-imagen img {{
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                display: block;
-            }}
-        </style>
         <div class="popup-contenido">
             <h4>
                 {escape(escuela)} <br>

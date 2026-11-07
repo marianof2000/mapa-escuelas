@@ -9,6 +9,7 @@ from .controles import (
     _agregar_selector_padrones, _crear_capa_escuelas,
 )
 from .datos import _anio_para_ordenar_padron
+from .popups import _agregar_estilos_popups
 
 def crear_mapa(
     escuelas_por_padron: dict[str, pd.DataFrame],
@@ -71,6 +72,7 @@ def crear_mapa(
             next(iter(capas)),
         )
         _agregar_estilos_selector_padrones(mapa)
+        _agregar_estilos_popups(mapa)
         _agregar_selector_padrones(mapa, capas, nombre_inicial, resumenes)
         _agregar_buscador_escuelas(mapa, registros_busqueda)
 
