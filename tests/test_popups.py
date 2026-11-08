@@ -3,7 +3,11 @@
 
 import unittest
 
-from src.mapa_escuelas.config import IMAGENES_POPUP_PATH
+from src.mapa_escuelas.config import (
+    IMAGENES_POPUP_PATH,
+    SPOTIFY_URL,
+    URBANAS_URL,
+)
 from src.mapa_escuelas.popups import (
     _crear_popup_desde_html,
     _crear_popup_html,
@@ -52,6 +56,20 @@ class PopupsTest(unittest.TestCase):
             "img/escuela-muestra.webp",
         )
 
+    def test_imagen_popup_urbana_fuerza_imagen_generica(self) -> None:
+        """Verifica la imagen generica para una escuela urbana.
+
+        Precondiciones:
+            El CUE posee una imagen propia y existe la imagen generica.
+        Postcondiciones:
+            Confirma que la opcion urbana ignora la foto propia y retorna la
+            ruta de la imagen generica; no modifica archivos.
+        """
+        self.assertEqual(
+            _imagen_popup_src("60827900", usar_generica=True),
+            "img/escuela-muestra.webp",
+        )
+
     def test_popup_conserva_contenido_sin_repetir_css(self) -> None:
         """Verifica contenido seguro y ausencia de estilos repetidos.
 
@@ -64,7 +82,7 @@ class PopupsTest(unittest.TestCase):
         html = _crear_popup_html(
             "EP 1",
             "DOMICILIO",
-            "Urbano",
+            "Rural",
             1,
             link="https://escuelas-dolores.example/padron_2010/1",
             historia="Historia <rural> de prueba",
@@ -76,6 +94,32 @@ class PopupsTest(unittest.TestCase):
         self.assertIn("Historia:", html)
         self.assertIn("Historia &lt;rural&gt; de prueba", html)
         self.assertEqual(popup.options["max_width"], 600)
+
+    def test_popup_urbano_no_muestra_historia_y_usa_recursos_comunes(self) -> None:
+        """Verifica el contenido especifico de los pines celestes.
+
+        Precondiciones:
+            La URL del blog, el reproductor y la imagen generica estan
+            configurados.
+        Postcondiciones:
+            Confirma que el popup urbano no contiene historia y que usa la
+            imagen, el enlace y el reproductor comunes.
+        """
+        html = _crear_popup_html(
+            "EP 1",
+            "DOMICILIO",
+            "Urbano",
+            "60827900",
+            link=URBANAS_URL,
+            historia="Esta historia no debe mostrarse",
+        )
+
+        self.assertNotIn('class="popup-historia"', html)
+        self.assertNotIn("Historia:", html)
+        self.assertNotIn("Esta historia no debe mostrarse", html)
+        self.assertIn('src="img/escuela-muestra.webp"', html)
+        self.assertIn(f'href="{URBANAS_URL}"', html)
+        self.assertIn(f'src="{SPOTIFY_URL}"', html)
 
     def test_popup_no_incluye_bloque_de_descripcion(self) -> None:
         """Verifica que el popup no conserve descripciones obsoletas.

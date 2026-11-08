@@ -72,7 +72,7 @@
         function mostrarResultados() {
             var consulta = normalizar(input.value);
             resultados.innerHTML = "";
-            if (consulta.length < 2) {
+            if (consulta.length < 1) {
                 ocultarResultados();
                 return;
             }

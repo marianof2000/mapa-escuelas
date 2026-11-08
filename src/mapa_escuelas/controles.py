@@ -9,6 +9,7 @@ import folium
 from folium import plugins
 import pandas as pd
 
+from .config import URBANAS_URL
 from .datos import _normalizar_cueanexo
 from .plantillas import cargar_plantilla
 from .popups import _crear_popup_desde_html, _crear_popup_html
@@ -36,12 +37,19 @@ def _crear_capa_escuelas(
     columnas_no_indexadas = {"historia", "link", "latitud", "longitud"}
     for escuela in escuelas.itertuples(index=False):
         ambito = getattr(escuela, "Ámbito")
-        color = "orange" if ambito == "Rural" else "lightblue"
+        es_rural = str(ambito).strip().casefold() == "rural"
+        color = "orange" if es_rural else "lightblue"
         cueanexo = _normalizar_cueanexo(escuela.Cueanexo)
-        link = str(getattr(escuela, "link", "")).strip()
-        historia = str(
-            getattr(escuela, "historia", "Historia no disponible.")
-        ).strip() or "Historia no disponible."
+        link = (
+            str(getattr(escuela, "link", "")).strip()
+            if es_rural
+            else URBANAS_URL
+        )
+        historia = ""
+        if es_rural:
+            historia = str(
+                getattr(escuela, "historia", "Historia no disponible.")
+            ).strip() or "Historia no disponible."
         popup_cache_key = (
             cueanexo,
             str(escuela.Domicilio),

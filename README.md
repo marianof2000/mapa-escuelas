@@ -18,9 +18,12 @@ historia, enlace, imagen y reproductor de Spotify.
   activo.
 - Buscador por escuela, CUE, domicilio, localidad y demás datos disponibles.
 - Marcadores naranjas para escuelas rurales y celestes para escuelas urbanas.
-- Ficha ampliada para cada escuela con ubicación, ámbito, historia, enlace,
-  imagen y audio.
-- Miniatura genérica cuando una escuela no tiene una imagen propia.
+- Ficha ampliada con ubicación, ámbito, enlace, imagen y audio; las escuelas
+  rurales incluyen además su historia.
+- Los pines urbanos usan una imagen genérica, un enlace común al blog y el
+  mismo reproductor de Spotify, sin mostrar un bloque de historia.
+- Las escuelas rurales usan su imagen propia o una miniatura genérica cuando
+  no existe una imagen específica.
 - Cambio automático de padrón cuando se abre un resultado del buscador.
 
 ## Estructura principal
@@ -51,7 +54,8 @@ historia, enlace, imagen y reproductor de Spotify.
 - `tests/test_contratos.py`: controla type hints y contratos de todas las
   funciones Python.
 - `maps-dol.html`: mapa generado.
-- `index.html`: página contenedora que muestra el mapa en un `iframe`.
+- `index.html`: página contenedora con una franja informativa lateral de un
+  sexto del ancho y el mapa mostrado en un `iframe`.
 
 ## Responsabilidades de los módulos Python
 
@@ -296,9 +300,11 @@ Las historias se toman de la columna `historia` de
 `data/indice_escuelas_rurales_dolores_CUE.csv` y se relacionan con cada escuela
 mediante `Cueanexo`.
 
-Cuando el CSV no contiene una historia para un CUE, la ficha muestra
-`Historia no disponible.`. Las filas de la fuente histórica que no tienen CUE
-no pueden asociarse automáticamente con un marcador.
+Las historias se muestran únicamente en los pines rurales. Cuando el CSV no
+contiene una historia para un CUE rural, la ficha muestra
+`Historia no disponible.`. Los pines urbanos no incluyen el recuadro de
+historia. Las filas de la fuente histórica que no tienen CUE no pueden
+asociarse automáticamente con un marcador.
 
 ## Imágenes
 
@@ -309,9 +315,10 @@ el `Cueanexo` de la escuela:
 img/60828200.webp
 ```
 
-Si no existe una imagen específica, el mapa utiliza
-`img/escuela-muestra.webp`. Las imágenes no se incrustan dentro del HTML: las
-fichas las cargan mediante rutas relativas.
+Los pines urbanos siempre utilizan `img/escuela-muestra.webp`. En los pines
+rurales, esa imagen se usa solamente cuando no existe una imagen específica.
+Las imágenes no se incrustan dentro del HTML: las fichas las cargan mediante
+rutas relativas.
 
 ## Generar el mapa
 

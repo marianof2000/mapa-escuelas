@@ -54,6 +54,7 @@ PRIMARIA_COLUMNAS = (
 SPOTIFY_URL = (
     "https://open.spotify.com/embed/show/" "446QK5WSDCmetKGYV38zoi?utm_source=generator"
 )
+URBANAS_URL = "https://voces-rurales-dolores.blogspot.com/"
 
 # Esta escuela cerró antes de 2011
 EP_12 = {
@@ -96,4 +97,6 @@ COORDENADAS_OFICIALES = {
     60828000: (-36.4252262, -57.4676075),
     # Escuela Nº12 Olegario V. Andrade: https://maps.app.goo.gl/bexbi8wrMq9CggYU6
     60200000: (-36.31279, -57.474213),
+    # Escuela Nº7 Ramon Melgar: coordenadas proporcionadas desde Google Maps
+    60250800: (-36.3046637, -57.6839118),
 }

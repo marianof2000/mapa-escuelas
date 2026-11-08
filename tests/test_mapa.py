@@ -6,6 +6,7 @@ import unittest
 
 import pandas as pd
 
+from src.mapa_escuelas.config import SPOTIFY_URL, URBANAS_URL
 from src.mapa_escuelas.mapa import crear_mapa
 
 
@@ -32,6 +33,8 @@ class MapaTest(unittest.TestCase):
                     "Domicilio": "MARQUEZ 50",
                     "Ámbito": "Urbano",
                     "Localidad": "DOLORES",
+                    "link": "https://enlace-urbano-no-permitido.example/",
+                    "historia": "Historia urbana que debe omitirse",
                 },
                 {
                     "Cueanexo": 60828200,
@@ -41,6 +44,8 @@ class MapaTest(unittest.TestCase):
                     "Domicilio": "CALLE 4",
                     "Ámbito": "Rural",
                     "Localidad": "DOLORES",
+                    "link": "https://enlace-rural.example/",
+                    "historia": "Historia rural visible",
                 },
             ]
         )
@@ -54,6 +59,8 @@ class MapaTest(unittest.TestCase):
 
         self.assertIn("buscador-escuelas-control", html)
         self.assertIn("Buscar escuela, CUE, domicilio", html)
+        self.assertIn("if (consulta.length < 1)", html)
+        self.assertNotIn("if (consulta.length < 2)", html)
         self.assertIn("<select", html)
         self.assertIn('name="padron-selector"', html)
         self.assertNotIn('type="radio"', html)
@@ -64,3 +71,10 @@ class MapaTest(unittest.TestCase):
         self.assertIn("width: 560px", html)
         self.assertIn("max-width: calc(100vw - 80px)", html)
         self.assertEqual(html.count(".popup-contenido {"), 1)
+        self.assertIn(f'href="{URBANAS_URL}"', html)
+        self.assertNotIn("enlace-urbano-no-permitido.example", html)
+        self.assertIn('src="img/escuela-muestra.webp"', html)
+        self.assertNotIn("Historia urbana que debe omitirse", html)
+        self.assertIn("Historia rural visible", html)
+        self.assertEqual(html.count(SPOTIFY_URL), 2)
+        self.assertEqual(html.count("open.spotify.com/embed"), 2)

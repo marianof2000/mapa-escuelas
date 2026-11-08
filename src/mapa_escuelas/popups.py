@@ -54,18 +54,20 @@ def _ruta_imagen_popup(cueanexo: object) -> Path:
     cueanexo_limpio = _normalizar_cueanexo(cueanexo)
     return IMAGENES_POPUP_PATH / f"{cueanexo_limpio}{IMAGEN_EXTENSION}"
 
-def _imagen_popup_src(cueanexo: object) -> str:
+def _imagen_popup_src(cueanexo: object, usar_generica: bool = False) -> str:
     """Obtiene la URL relativa de una imagen de popup existente.
 
     Precondiciones:
-        ``cueanexo`` cumple el contrato de :func:`_ruta_imagen_popup`.
+        ``cueanexo`` cumple el contrato de :func:`_ruta_imagen_popup` y
+        ``usar_generica`` es un booleano.
     Postcondiciones:
-        Retorna la ruta web de la imagen propia de la escuela cuando existe o
-        la miniatura de muestra configurada como respaldo.
+        Retorna la miniatura generica cuando se solicita; en caso contrario,
+        retorna la imagen propia si existe o la miniatura como respaldo.
     """
-    ruta = _ruta_imagen_popup(cueanexo)
-    if ruta.exists():
-        return f"{IMAGEN_WEB_PATH}/{ruta.name}"
+    if not usar_generica:
+        ruta = _ruta_imagen_popup(cueanexo)
+        if ruta.exists():
+            return f"{IMAGEN_WEB_PATH}/{ruta.name}"
 
     ruta_muestra = IMAGENES_POPUP_PATH / IMAGEN_MUESTRA
     if not ruta_muestra.exists():
@@ -87,12 +89,21 @@ def _crear_popup_html(
         como texto, y ``cueanexo`` identifica la escuela.
     Postcondiciones:
         Retorna una cadena HTML con los datos escapados, el reproductor y, si
-        existe, la imagen de la escuela; no modifica sus argumentos.
+        existe, la imagen de la escuela. Para el ambito urbano usa la imagen
+        generica y omite la historia; no modifica sus argumentos.
     """
     escuela, nombre = _separar_nombre(str(nombre_completo))
-    imagen_src = _imagen_popup_src(cueanexo)
+    es_urbana = str(ambito).strip().casefold() == "urbano"
+    imagen_src = _imagen_popup_src(cueanexo, usar_generica=es_urbana)
     imagen_alt = f"Imagen ilustrativa de {escuela}"
-    historia_html = escape(historia).replace("\n", "<br>")
+    historia_html = ""
+    if not es_urbana:
+        historia_html = f"""
+            <div class="popup-historia">
+                <strong>Historia:</strong>
+                <p>{escape(historia).replace("\n", "<br>")}</p>
+            </div>
+        """
     link_html = ""
     if link:
         link_html = f"""
@@ -123,10 +134,7 @@ def _crear_popup_html(
                 <strong>Ubicación:</strong> {escape(str(domicilio))} <br>
                 <strong>Ambito:</strong> {escape(str(ambito))} <br>
             </p>
-            <div class="popup-historia">
-                <strong>Historia:</strong>
-                <p>{historia_html}</p>
-            </div>
+            {historia_html}
             {link_html}
             {imagen_html}
             <p>

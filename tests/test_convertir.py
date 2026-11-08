@@ -159,3 +159,31 @@ class ConvertirTest(unittest.TestCase):
 
         self.assertEqual(resultado.iloc[0]["latitud"], -36.31279)
         self.assertEqual(resultado.iloc[0]["longitud"], -57.474213)
+
+    def test_usa_coordenadas_oficiales_para_escuela_7(self) -> None:
+        """Verifica las coordenadas oficiales de la escuela 7.
+
+        Precondiciones:
+            La configuracion contiene coordenadas oficiales para el CUE
+            60250800.
+        Postcondiciones:
+            Confirma que el resultado reemplaza cualquier valor previo por el
+            par oficial configurado.
+        """
+        padrones = pd.DataFrame(
+            [
+                {
+                    "Cueanexo": 60250800,
+                    "Departamento": "DOLORES",
+                    "Localidad": "DOLORES",
+                    "Domicilio": "BUENOS AIRES 1280",
+                    "latitud": -36.29887901,
+                    "longitud": -57.68754443,
+                }
+            ]
+        )
+
+        resultado = _completar_coordenadas_mas_recientes(padrones)
+
+        self.assertEqual(resultado.iloc[0]["latitud"], -36.3046637)
+        self.assertEqual(resultado.iloc[0]["longitud"], -57.6839118)
