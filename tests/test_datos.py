@@ -202,6 +202,42 @@ class DatosTest(unittest.TestCase):
         self.assertTrue(escuelas["historia"].eq("Historia no disponible.").any())
         self.assertTrue(HISTORIAS_PATH.exists())
 
+    def test_links_rurales_apuntan_a_las_publicaciones_del_blog(self) -> None:
+        """Verifica los enlaces específicos de las escuelas rurales.
+
+        Precondiciones:
+            ``links.csv`` contiene un registro único por ``Cueanexo`` y las
+            publicaciones rurales permanecen disponibles en el blog fuente.
+        Postcondiciones:
+            Confirma que cada CUE rural conserva la URL de su publicación; no
+            modifica los archivos de datos.
+        """
+        enlaces_esperados = {
+            "60251100": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-2-congreso-de.html",
+            "60250900": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-6-almirante-brown-el.html",
+            "60250600": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-11-sol-de-mayo.html",
+            "60200000": "https://voces-rurales-dolores.blogspot.com/2026/11/la-legendaria-escuela-n-12-de-la-ruta-63.html",
+            "60828200": "https://voces-rurales-dolores.blogspot.com/2026/11/la-escuela-14-dr-victoriano-e-montes.html",
+            "60828100": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-16-juan-bautista.html",
+            "60250300": "https://voces-rurales-dolores.blogspot.com/2026/11/la-escuela-primaria-no-17-libres-del.html",
+            "60250200": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-18-hipolito-yrigoyen.html",
+            "60250100": "https://voces-rurales-dolores.blogspot.com/2026/11/cuartel-ix-montes-del-tordillo-ep-19-25.html",
+            "60250000": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-23-tambor-de-tacuari.html",
+            "60249900": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-24-bernardino.html",
+            "60249800": "https://voces-rurales-dolores.blogspot.com/2026/11/cuartel-ix-montes-del-tordillo-ep-19-25.html",
+            "60828000": "https://voces-rurales-dolores.blogspot.com/2026/11/cuartel-ix-montes-del-tordillo-ep-19-25.html",
+            "60251200": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-n-28-mariano-moreno.html",
+            "60249700": "https://voces-rurales-dolores.blogspot.com/2026/11/escuela-primaria-rural-n-29-manuel.html",
+        }
+        links = pd.read_csv(LINKS_PATH, dtype=str)
+        links["Cueanexo"] = links["Cueanexo"].map(_normalizar_cueanexo)
+        enlaces_actuales = links.set_index("Cueanexo")["link"].to_dict()
+
+        self.assertEqual(
+            {cue: enlaces_actuales[cue] for cue in enlaces_esperados},
+            enlaces_esperados,
+        )
+
     def test_nombre_del_pin_admite_nombre_en_ambas_mayusculas(self) -> None:
         """Verifica el uso alternativo de las columnas ``nombre`` y ``Nombre``.
 
